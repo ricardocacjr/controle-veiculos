@@ -16,14 +16,30 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .Include(u => u.Abastecimentos)
             .FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    /// <summary>
+    /// Sobrescreve o ListAsync genérico da <see cref="RepositoryBase{T}"/>: sem os Includes, a
+    /// listagem (usada pelo painel do gestor) mostrava "?" no lugar da placa e do nome do
+    /// motorista, porque as propriedades de navegação não vinham carregadas.
+    /// </summary>
+    public override async Task<IReadOnlyList<UsageRecord>> ListAsync(CancellationToken ct = default) =>
+        await Set.AsNoTracking()
+            .Include(u => u.Veiculo)
+            .Include(u => u.Motorista)
+            .OrderByDescending(u => u.IniciadoEm)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<UsageRecord>> ListByMotoristaAsync(Guid motoristaId, CancellationToken ct = default) =>
         await Set.AsNoTracking()
+            .Include(u => u.Veiculo)
+            .Include(u => u.Motorista)
             .Where(u => u.MotoristaId == motoristaId)
             .OrderByDescending(u => u.IniciadoEm)
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<UsageRecord>> ListByVeiculoAsync(Guid veiculoId, CancellationToken ct = default) =>
         await Set.AsNoTracking()
+            .Include(u => u.Veiculo)
+            .Include(u => u.Motorista)
             .Where(u => u.VeiculoId == veiculoId)
             .OrderByDescending(u => u.IniciadoEm)
             .ToListAsync(ct);
