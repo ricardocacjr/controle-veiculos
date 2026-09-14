@@ -49,6 +49,33 @@ public class VehiclesController(IVehicleRepository vehicleRepository) : Controll
         return CreatedAtAction(nameof(GetById), new { id = vehicle.Id }, ToDto(vehicle));
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
+    public async Task<ActionResult<VehicleDto>> Update(Guid id, UpdateVehicleRequest request, CancellationToken ct)
+    {
+        var vehicle = await vehicleRepository.GetByIdAsync(id, ct);
+        if (vehicle is null)
+            return NotFound();
+
+        var vehicleWithSamePlaca = await vehicleRepository.GetByPlacaAsync(request.Placa, ct);
+        if (vehicleWithSamePlaca is not null && vehicleWithSamePlaca.Id != id)
+            return BadRequest("Já existe um veículo com essa placa.");
+
+        vehicle.Placa = request.Placa;
+        vehicle.Marca = request.Marca;
+        vehicle.Modelo = request.Modelo;
+        vehicle.Ano = request.Ano;
+        vehicle.Cor = request.Cor;
+        vehicle.OdometroAtual = request.OdometroAtual;
+        vehicle.Status = request.Status;
+        vehicle.UpdatedAt = DateTimeOffset.UtcNow;
+
+        vehicleRepository.Update(vehicle);
+        await vehicleRepository.SaveChangesAsync(ct);
+
+        return Ok(ToDto(vehicle));
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

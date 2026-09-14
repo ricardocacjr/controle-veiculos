@@ -2,6 +2,7 @@
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Motoristas</PageTitle>
 
@@ -64,7 +65,7 @@ else
                         <td>@(driver.CnhValidade?.ToString("dd/MM/yyyy") ?? "-")</td>
                         <td>@driver.Telefone</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(driver.Id)">Remover</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(driver)">Remover</button>
                         </td>
                     </tr>
                 }
@@ -126,11 +127,15 @@ else
         }
     }
 
-    private async Task HandleDeleteAsync(Guid id)
+    private async Task HandleDeleteAsync(ControleVeiculos.Shared.Drivers.DriverDto driver)
     {
+        var confirmado = await JS.InvokeAsync<bool>("confirm", $"Remover o motorista {driver.Nome}?");
+        if (!confirmado)
+            return;
+
         try
         {
-            await Api.DeleteDriverAsync(id);
+            await Api.DeleteDriverAsync(driver.Id);
             await LoadDriversAsync();
         }
         catch (HttpRequestException)

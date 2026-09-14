@@ -36,7 +36,16 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         using var request = AuthorizedRequest(HttpMethod.Post, "api/vehicles");
         request.Content = JsonContent.Create(vehicle);
         var response = await http.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<VehicleDto>();
+    }
+
+    public async Task<VehicleDto?> UpdateVehicleAsync(Guid id, UpdateVehicleRequest vehicle)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/vehicles/{id}");
+        request.Content = JsonContent.Create(vehicle);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
         return await response.Content.ReadFromJsonAsync<VehicleDto>();
     }
 
@@ -99,25 +108,29 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 
     /// <summary>
     /// Como <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/>, mas em vez do genérico
-    /// "Response status code does not indicate success: 400" propaga a lista de erros que a Api
-    /// devolve no corpo (ex: regras de senha do Identity) — sem isso a tela de cadastro não tinha
-    /// como mostrar pro usuário por que falhou.
+    /// "Response status code does not indicate success: 400" propaga o erro que a Api devolve no
+    /// corpo — uma lista de strings (ex: regras de senha do Identity) ou uma única string (ex:
+    /// "Já existe um veículo com essa placa."), dependendo do endpoint. Sem isso as telas não
+    /// tinham como mostrar pro usuário por que a operação falhou.
     /// </summary>
     private static async Task EnsureSuccessWithApiErrorAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode)
             return;
 
-        List<string>? errors = null;
+        var body = await response.Content.ReadAsStringAsync();
+        string? message = null;
         try
         {
-            errors = await response.Content.ReadFromJsonAsync<List<string>>();
+            message = body.TrimStart().StartsWith('[')
+                ? string.Join(" ", System.Text.Json.JsonSerializer.Deserialize<List<string>>(body) ?? [])
+                : System.Text.Json.JsonSerializer.Deserialize<string>(body);
         }
         catch (System.Text.Json.JsonException)
         {
-            // Corpo da resposta não era uma lista de erros (ex: 401 sem corpo) — cai no fallback abaixo.
+            // Corpo não era JSON de string/lista (ex: 401 sem corpo) — cai no fallback abaixo.
         }
 
-        throw new HttpRequestException(errors is { Count: > 0 } ? string.Join(" ", errors) : $"Erro {(int)response.StatusCode}.");
+        throw new HttpRequestException(string.IsNullOrWhiteSpace(message) ? $"Erro {(int)response.StatusCode}." : message);
     }
 }

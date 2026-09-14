@@ -1,7 +1,10 @@
 @page "/veiculos"
+@using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.Vehicles
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Veículos</PageTitle>
 
@@ -13,28 +16,50 @@
 }
 else
 {
-    <EditForm Model="_newVehicle" OnValidSubmit="HandleCreateAsync">
-        <div class="row g-2 mb-3">
-            <div class="col-md-2">
-                <InputText class="form-control" placeholder="Placa" @bind-Value="_newVehicle.Placa" />
+    <EditForm Model="_form" OnValidSubmit="HandleSubmitAsync">
+        <div class="d-flex flex-wrap gap-2 mb-3 align-items-end">
+            <div style="width:110px">
+                <label class="form-label small mb-0">Placa</label>
+                <InputText class="form-control" @bind-Value="_form.Placa" />
             </div>
-            <div class="col-md-2">
-                <InputText class="form-control" placeholder="Marca" @bind-Value="_newVehicle.Marca" />
+            <div style="width:130px">
+                <label class="form-label small mb-0">Marca</label>
+                <InputText class="form-control" @bind-Value="_form.Marca" />
             </div>
-            <div class="col-md-2">
-                <InputText class="form-control" placeholder="Modelo" @bind-Value="_newVehicle.Modelo" />
+            <div style="width:130px">
+                <label class="form-label small mb-0">Modelo</label>
+                <InputText class="form-control" @bind-Value="_form.Modelo" />
             </div>
-            <div class="col-md-1">
-                <InputNumber class="form-control" placeholder="Ano" @bind-Value="_newVehicle.Ano" />
+            <div style="width:90px">
+                <label class="form-label small mb-0">Ano</label>
+                <InputNumber class="form-control" @bind-Value="_form.Ano" />
             </div>
-            <div class="col-md-2">
-                <InputText class="form-control" placeholder="Cor" @bind-Value="_newVehicle.Cor" />
+            <div style="width:100px">
+                <label class="form-label small mb-0">Cor</label>
+                <InputText class="form-control" @bind-Value="_form.Cor" />
             </div>
-            <div class="col-md-1">
-                <InputNumber class="form-control" placeholder="Odômetro" @bind-Value="_newVehicle.OdometroAtual" />
+            <div style="width:110px">
+                <label class="form-label small mb-0">Odômetro</label>
+                <InputNumber class="form-control" @bind-Value="_form.OdometroAtual" />
             </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary w-100" disabled="@_loading">Adicionar</button>
+            @if (_editingId is not null)
+            {
+                <div style="width:140px">
+                    <label class="form-label small mb-0">Status</label>
+                    <InputSelect class="form-select" @bind-Value="_form.Status">
+                        @foreach (var status in Enum.GetValues<VehicleStatus>())
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </InputSelect>
+                </div>
+            }
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@_loading">@(_editingId is null ? "Adicionar" : "Salvar")</button>
+                @if (_editingId is not null)
+                {
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">Cancelar</button>
+                }
             </div>
         </div>
     </EditForm>
@@ -76,8 +101,9 @@ else
                         <td>@vehicle.Cor</td>
                         <td>@vehicle.OdometroAtual km</td>
                         <td>@vehicle.Status</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(vehicle.Id)">Remover</button>
+                        <td class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(vehicle)">Editar</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(vehicle)">Remover</button>
                         </td>
                     </tr>
                 }
@@ -87,10 +113,11 @@ else
 }
 
 @code {
-    private List<ControleVeiculos.Shared.Vehicles.VehicleDto>? _vehicles;
+    private List<VehicleDto>? _vehicles;
     private string? _error;
     private bool _loading;
-    private readonly NewVehicleModel _newVehicle = new();
+    private Guid? _editingId;
+    private readonly VehicleFormModel _form = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,24 +142,51 @@ else
         }
     }
 
-    private async Task HandleCreateAsync()
+    private void StartEdit(VehicleDto vehicle)
+    {
+        _editingId = vehicle.Id;
+        _form.Placa = vehicle.Placa;
+        _form.Marca = vehicle.Marca;
+        _form.Modelo = vehicle.Modelo;
+        _form.Ano = vehicle.Ano;
+        _form.Cor = vehicle.Cor;
+        _form.OdometroAtual = vehicle.OdometroAtual;
+        _form.Status = vehicle.Status;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        ResetForm();
+    }
+
+    private async Task HandleSubmitAsync()
     {
         _loading = true;
         _error = null;
         try
         {
-            var request = new ControleVeiculos.Shared.Vehicles.CreateVehicleRequest(
-                _newVehicle.Placa, _newVehicle.Marca, _newVehicle.Modelo, _newVehicle.Ano, _newVehicle.Cor, _newVehicle.OdometroAtual);
-            await Api.CreateVehicleAsync(request);
-            _newVehicle.Placa = string.Empty;
-            _newVehicle.Marca = string.Empty;
-            _newVehicle.Modelo = string.Empty;
-            _newVehicle.Cor = string.Empty;
+            if (_editingId is { } id)
+            {
+                var updateRequest = new UpdateVehicleRequest(
+                    _form.Placa, _form.Marca, _form.Modelo, _form.Ano, _form.Cor, _form.OdometroAtual, _form.Status);
+                await Api.UpdateVehicleAsync(id, updateRequest);
+                _editingId = null;
+            }
+            else
+            {
+                var createRequest = new CreateVehicleRequest(
+                    _form.Placa, _form.Marca, _form.Modelo, _form.Ano, _form.Cor, _form.OdometroAtual);
+                await Api.CreateVehicleAsync(createRequest);
+            }
+
+            ResetForm();
             await LoadVehiclesAsync();
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Não foi possível adicionar o veículo: {ex.Message}";
+            _error = $"Não foi possível salvar o veículo: {ex.Message}";
         }
         finally
         {
@@ -140,11 +194,15 @@ else
         }
     }
 
-    private async Task HandleDeleteAsync(Guid id)
+    private async Task HandleDeleteAsync(VehicleDto vehicle)
     {
+        var confirmado = await JS.InvokeAsync<bool>("confirm", $"Remover o veículo {vehicle.Placa} ({vehicle.Marca} {vehicle.Modelo})?");
+        if (!confirmado)
+            return;
+
         try
         {
-            await Api.DeleteVehicleAsync(id);
+            await Api.DeleteVehicleAsync(vehicle.Id);
             await LoadVehiclesAsync();
         }
         catch (HttpRequestException)
@@ -153,7 +211,18 @@ else
         }
     }
 
-    private class NewVehicleModel
+    private void ResetForm()
+    {
+        _form.Placa = string.Empty;
+        _form.Marca = string.Empty;
+        _form.Modelo = string.Empty;
+        _form.Ano = DateTime.Now.Year;
+        _form.Cor = null;
+        _form.OdometroAtual = 0;
+        _form.Status = VehicleStatus.Disponivel;
+    }
+
+    private class VehicleFormModel
     {
         public string Placa { get; set; } = string.Empty;
         public string Marca { get; set; } = string.Empty;
@@ -161,5 +230,6 @@ else
         public int Ano { get; set; } = DateTime.Now.Year;
         public string? Cor { get; set; }
         public int OdometroAtual { get; set; }
+        public VehicleStatus Status { get; set; } = VehicleStatus.Disponivel;
     }
 }
