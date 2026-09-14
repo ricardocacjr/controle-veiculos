@@ -20,7 +20,12 @@ public static class DependencyInjection
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
+                // Exigir maiúscula + caractere especial (padrão do Identity) é fricção
+                // desnecessária pra motoristas digitando a senha no celular em campo — mantém
+                // dígito + minúscula + 8 caracteres, que já é um mínimo razoável.
                 options.Password.RequiredLength = 8;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
                 options.User.RequireUniqueEmail = true;
             })
             .AddRoles<IdentityRole<Guid>>()

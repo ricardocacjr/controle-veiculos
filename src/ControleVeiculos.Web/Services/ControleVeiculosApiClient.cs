@@ -19,7 +19,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
     public async Task<AuthResponse?> RegisterAsync(string nomeCompleto, string email, string password, string role)
     {
         var response = await http.PostAsJsonAsync("api/auth/register", new RegisterRequest(nomeCompleto, email, password, role));
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithApiErrorAsync(response);
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
     }
 
@@ -95,5 +95,29 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         if (authState.Token is not null)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authState.Token);
         return request;
+    }
+
+    /// <summary>
+    /// Como <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/>, mas em vez do genérico
+    /// "Response status code does not indicate success: 400" propaga a lista de erros que a Api
+    /// devolve no corpo (ex: regras de senha do Identity) — sem isso a tela de cadastro não tinha
+    /// como mostrar pro usuário por que falhou.
+    /// </summary>
+    private static async Task EnsureSuccessWithApiErrorAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        List<string>? errors = null;
+        try
+        {
+            errors = await response.Content.ReadFromJsonAsync<List<string>>();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Corpo da resposta não era uma lista de erros (ex: 401 sem corpo) — cai no fallback abaixo.
+        }
+
+        throw new HttpRequestException(errors is { Count: > 0 } ? string.Join(" ", errors) : $"Erro {(int)response.StatusCode}.");
     }
 }
