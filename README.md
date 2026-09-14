@@ -47,24 +47,32 @@ SuporteRemoto.
 
 ## Banco de dados (MySQL)
 
-Ainda não há um MySQL rodando localmente nesta máquina para este projeto (diferente do
-SuporteRemoto, que já tinha um instalado) — suba um MySQL 8.x e ajuste
-[`src/ControleVeiculos.Api/appsettings.Development.json`](src/ControleVeiculos.Api/appsettings.Development.json)
-se as credenciais abaixo não corresponderem ao seu ambiente:
+Usa a mesma instalação local de MySQL do projeto SuporteRemoto (sem privilégios de admin, por
+isso não roda como serviço do Windows — precisa ser iniciado manualmente a cada reinício):
 
+```bash
+"C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" --basedir="C:\Program Files\MySQL\MySQL Server 8.4" --datadir="C:\Users\Usuario\mysql-data" --port=3306
+```
+
+Banco e usuário já criados:
 - Database: `controle_veiculos_db`
-- Usuário: `controle_veiculos_app` / senha `ControleVeiculos_App_2026!`
+- Usuário da aplicação: `controle_veiculos_app` / senha `ControleVeiculos_App_2026!`
+- Root: senha `SuporteRemoto_Root_2026!` (mesma conta root do MySQL compartilhado com o
+  SuporteRemoto)
 
-Para aplicar as migrations:
+A connection string está em
+[`src/ControleVeiculos.Api/appsettings.Development.json`](src/ControleVeiculos.Api/appsettings.Development.json).
+Migrations já aplicadas nesta máquina; para reaplicar em outro ambiente:
 
 ```bash
 dotnet ef database update --project src/ControleVeiculos.Infrastructure --startup-project src/ControleVeiculos.Api
 ```
 
-A migration inicial (`InitialCreate`) já está no repositório — foi gerada com uma
+A migration inicial (`InitialCreate`) já está no repositório — a
 [`AppDbContextFactory`](src/ControleVeiculos.Infrastructure/Persistence/AppDbContextFactory.cs)
-de design-time (versão fixa do MySQL) porque no ambiente onde o projeto foi criado não havia um
-servidor MySQL acessível para o `ServerVersion.AutoDetect` usado em runtime.
+de design-time usada pelo `dotnet ef` tem prioridade sobre `--startup-project`, então suas
+credenciais precisam bater com o banco/usuário acima (se mudar a senha local, atualize os dois
+lugares).
 
 ## Configuração da transcrição de voz (Google Cloud Speech-to-Text)
 
