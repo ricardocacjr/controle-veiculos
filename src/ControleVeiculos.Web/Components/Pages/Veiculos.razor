@@ -1,0 +1,165 @@
+@page "/veiculos"
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Veículos</PageTitle>
+
+<h1>Veículos</h1>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> para ver os veículos.</p>
+}
+else
+{
+    <EditForm Model="_newVehicle" OnValidSubmit="HandleCreateAsync">
+        <div class="row g-2 mb-3">
+            <div class="col-md-2">
+                <InputText class="form-control" placeholder="Placa" @bind-Value="_newVehicle.Placa" />
+            </div>
+            <div class="col-md-2">
+                <InputText class="form-control" placeholder="Marca" @bind-Value="_newVehicle.Marca" />
+            </div>
+            <div class="col-md-2">
+                <InputText class="form-control" placeholder="Modelo" @bind-Value="_newVehicle.Modelo" />
+            </div>
+            <div class="col-md-1">
+                <InputNumber class="form-control" placeholder="Ano" @bind-Value="_newVehicle.Ano" />
+            </div>
+            <div class="col-md-2">
+                <InputText class="form-control" placeholder="Cor" @bind-Value="_newVehicle.Cor" />
+            </div>
+            <div class="col-md-1">
+                <InputNumber class="form-control" placeholder="Odômetro" @bind-Value="_newVehicle.OdometroAtual" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100" disabled="@_loading">Adicionar</button>
+            </div>
+        </div>
+    </EditForm>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    @if (_vehicles is null)
+    {
+        <p>Carregando...</p>
+    }
+    else if (_vehicles.Count == 0)
+    {
+        <p>Nenhum veículo cadastrado ainda.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Placa</th>
+                    <th>Marca/Modelo</th>
+                    <th>Ano</th>
+                    <th>Cor</th>
+                    <th>Odômetro</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var vehicle in _vehicles)
+                {
+                    <tr>
+                        <td>@vehicle.Placa</td>
+                        <td>@vehicle.Marca @vehicle.Modelo</td>
+                        <td>@vehicle.Ano</td>
+                        <td>@vehicle.Cor</td>
+                        <td>@vehicle.OdometroAtual km</td>
+                        <td>@vehicle.Status</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(vehicle.Id)">Remover</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<ControleVeiculos.Shared.Vehicles.VehicleDto>? _vehicles;
+    private string? _error;
+    private bool _loading;
+    private readonly NewVehicleModel _newVehicle = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadVehiclesAsync();
+    }
+
+    private async Task LoadVehiclesAsync()
+    {
+        try
+        {
+            _vehicles = (await Api.GetVehiclesAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível carregar os veículos.";
+        }
+    }
+
+    private async Task HandleCreateAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var request = new ControleVeiculos.Shared.Vehicles.CreateVehicleRequest(
+                _newVehicle.Placa, _newVehicle.Marca, _newVehicle.Modelo, _newVehicle.Ano, _newVehicle.Cor, _newVehicle.OdometroAtual);
+            await Api.CreateVehicleAsync(request);
+            _newVehicle.Placa = string.Empty;
+            _newVehicle.Marca = string.Empty;
+            _newVehicle.Modelo = string.Empty;
+            _newVehicle.Cor = string.Empty;
+            await LoadVehiclesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Não foi possível adicionar o veículo: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleDeleteAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteVehicleAsync(id);
+            await LoadVehiclesAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível remover o veículo.";
+        }
+    }
+
+    private class NewVehicleModel
+    {
+        public string Placa { get; set; } = string.Empty;
+        public string Marca { get; set; } = string.Empty;
+        public string Modelo { get; set; } = string.Empty;
+        public int Ano { get; set; } = DateTime.Now.Year;
+        public string? Cor { get; set; }
+        public int OdometroAtual { get; set; }
+    }
+}

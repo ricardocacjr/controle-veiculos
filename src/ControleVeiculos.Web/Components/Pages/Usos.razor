@@ -1,0 +1,80 @@
+@page "/usos"
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Usos registrados</PageTitle>
+
+<h1>Usos registrados</h1>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> para ver os usos.</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_usos is null)
+{
+    <p>Carregando...</p>
+}
+else if (_usos.Count == 0)
+{
+    <p>Nenhum uso registrado ainda. Os motoristas registram o início/fim de cada uso pelo app mobile.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Veículo</th>
+                <th>Motorista</th>
+                <th>Finalidade</th>
+                <th>Odômetro (ini/fim)</th>
+                <th>Início</th>
+                <th>Fim</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var uso in _usos)
+            {
+                <tr style="cursor:pointer" @onclick="() => NavigateToUso(uso.Id)">
+                    <td>@uso.VeiculoPlaca</td>
+                    <td>@uso.MotoristaNome</td>
+                    <td>@uso.Finalidade</td>
+                    <td>@uso.OdometroInicial / @(uso.OdometroFinal?.ToString() ?? "-")</td>
+                    <td>@uso.IniciadoEm.LocalDateTime</td>
+                    <td>@(uso.FinalizadoEm?.LocalDateTime.ToString() ?? "-")</td>
+                    <td>@uso.Status</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ControleVeiculos.Shared.UsageRecords.UsageRecordDto>? _usos;
+    private string? _error;
+
+    private void NavigateToUso(Guid id) => Nav.NavigateTo($"/usos/{id}");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            _usos = (await Api.GetUsageRecordsAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível carregar os usos registrados.";
+        }
+    }
+}

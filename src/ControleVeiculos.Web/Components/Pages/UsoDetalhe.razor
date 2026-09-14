@@ -1,0 +1,121 @@
+@page "/usos/{Id:guid}"
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Uso registrado</PageTitle>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> para ver este uso.</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_uso is null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    <h1>@_uso.VeiculoPlaca — @_uso.Finalidade</h1>
+
+    <p>
+        <strong>Motorista:</strong> @_uso.MotoristaNome<br />
+        <strong>Origem/Destino:</strong> @(_uso.Origem ?? "-") → @(_uso.Destino ?? "-")<br />
+        <strong>Odômetro:</strong> @_uso.OdometroInicial km → @(_uso.OdometroFinal?.ToString() ?? "em andamento") km<br />
+        <strong>Início:</strong> @_uso.IniciadoEm.LocalDateTime<br />
+        <strong>Fim:</strong> @(_uso.FinalizadoEm?.LocalDateTime.ToString() ?? "-")<br />
+        <strong>Status:</strong> @_uso.Status
+    </p>
+
+    <h2>Fotos (@_uso.Fotos.Count)</h2>
+    @if (_uso.Fotos.Count == 0)
+    {
+        <p>Nenhuma foto anexada.</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var foto in _uso.Fotos)
+            {
+                <li>@foto.Tipo — @foto.Observacao</li>
+            }
+        </ul>
+    }
+
+    <h2>Notas de voz (@_uso.NotasDeVoz.Count)</h2>
+    @if (_uso.NotasDeVoz.Count == 0)
+    {
+        <p>Nenhuma nota de voz anexada.</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var nota in _uso.NotasDeVoz)
+            {
+                <li>
+                    <strong>[@nota.Status]</strong>
+                    @(string.IsNullOrWhiteSpace(nota.TranscricaoTexto) ? "(sem transcrição)" : nota.TranscricaoTexto)
+                </li>
+            }
+        </ul>
+    }
+
+    <h2>Abastecimentos (@_uso.Abastecimentos.Count)</h2>
+    @if (_uso.Abastecimentos.Count == 0)
+    {
+        <p>Nenhum abastecimento registrado.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Litros</th>
+                    <th>Valor</th>
+                    <th>Odômetro</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var abastecimento in _uso.Abastecimentos)
+                {
+                    <tr>
+                        <td>@abastecimento.Litros L</td>
+                        <td>R$ @abastecimento.ValorTotal</td>
+                        <td>@abastecimento.Odometro km</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ControleVeiculos.Shared.UsageRecords.UsageRecordDetailDto? _uso;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            _uso = await Api.GetUsageRecordDetailAsync(Id);
+            if (_uso is null)
+                _error = "Uso não encontrado.";
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível carregar o uso.";
+        }
+    }
+}

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ControleVeiculos.Mobile.Pages.HomePage"
+             Title="Início">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="12">
+
+            <ActivityIndicator x:Name="LoadingIndicator" IsVisible="True" IsRunning="True" />
+
+            <VerticalStackLayout x:Name="EmAndamentoPanel" IsVisible="False" Spacing="8">
+                <Label Text="Você tem um uso em andamento" FontSize="18" FontAttributes="Bold" />
+                <Button Text="Continuar viagem" Clicked="OnContinuarClicked" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout x:Name="IniciarPanel" IsVisible="False" Spacing="8">
+                <Label Text="Iniciar uso do veículo" FontSize="18" FontAttributes="Bold" />
+
+                <Label Text="Veículo" />
+                <Picker x:Name="VeiculoPicker" Title="Selecione o veículo" />
+
+                <Entry x:Name="FinalidadeEntry" Placeholder="Finalidade" />
+                <Entry x:Name="OrigemEntry" Placeholder="Origem (opcional)" />
+                <Entry x:Name="DestinoEntry" Placeholder="Destino (opcional)" />
+                <Entry x:Name="OdometroEntry" Placeholder="Odômetro inicial" Keyboard="Numeric" />
+
+                <Label x:Name="ErrorLabel" TextColor="Red" IsVisible="False" />
+
+                <Button Text="Iniciar" Clicked="OnIniciarClicked" x:Name="IniciarButton" />
+            </VerticalStackLayout>
+
+            <Button Text="Sair" Clicked="OnSairClicked" BackgroundColor="Transparent" TextColor="Gray" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

@@ -1,0 +1,148 @@
+@page "/motoristas"
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Motoristas</PageTitle>
+
+<h1>Motoristas</h1>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> para ver os motoristas.</p>
+}
+else
+{
+    <EditForm Model="_newDriver" OnValidSubmit="HandleCreateAsync">
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <InputText class="form-control" placeholder="Nome" @bind-Value="_newDriver.Nome" />
+            </div>
+            <div class="col-md-3">
+                <InputText class="form-control" placeholder="CNH" @bind-Value="_newDriver.Cnh" />
+            </div>
+            <div class="col-md-3">
+                <InputText class="form-control" placeholder="Telefone" @bind-Value="_newDriver.Telefone" />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100" disabled="@_loading">Adicionar</button>
+            </div>
+        </div>
+    </EditForm>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    @if (_drivers is null)
+    {
+        <p>Carregando...</p>
+    }
+    else if (_drivers.Count == 0)
+    {
+        <p>Nenhum motorista cadastrado ainda.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>CNH</th>
+                    <th>Validade CNH</th>
+                    <th>Telefone</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var driver in _drivers)
+                {
+                    <tr>
+                        <td>@driver.Nome</td>
+                        <td>@driver.Cnh</td>
+                        <td>@(driver.CnhValidade?.ToString("dd/MM/yyyy") ?? "-")</td>
+                        <td>@driver.Telefone</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(driver.Id)">Remover</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<ControleVeiculos.Shared.Drivers.DriverDto>? _drivers;
+    private string? _error;
+    private bool _loading;
+    private readonly NewDriverModel _newDriver = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadDriversAsync();
+    }
+
+    private async Task LoadDriversAsync()
+    {
+        try
+        {
+            _drivers = (await Api.GetDriversAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível carregar os motoristas.";
+        }
+    }
+
+    private async Task HandleCreateAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var request = new ControleVeiculos.Shared.Drivers.CreateDriverRequest(
+                _newDriver.Nome, _newDriver.Cnh, null, _newDriver.Telefone, null);
+            await Api.CreateDriverAsync(request);
+            _newDriver.Nome = string.Empty;
+            _newDriver.Cnh = string.Empty;
+            _newDriver.Telefone = null;
+            await LoadDriversAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Não foi possível adicionar o motorista: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleDeleteAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteDriverAsync(id);
+            await LoadDriversAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível remover o motorista.";
+        }
+    }
+
+    private class NewDriverModel
+    {
+        public string Nome { get; set; } = string.Empty;
+        public string Cnh { get; set; } = string.Empty;
+        public string? Telefone { get; set; }
+    }
+}

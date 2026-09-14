@@ -1,0 +1,24 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+
+## Testes
+TestResults/
+
+## Segredos locais (nunca commitar)
+appsettings.*.local.json
+*.pfx
+GoogleCloud-credentials*.json
+
+## Arquivos enviados por usuário (fotos, notas de voz)
+App_Data/
+
+## Executáveis publicados
+/publish/
