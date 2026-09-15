@@ -9,8 +9,8 @@
 
 <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
     <div class="mb-3">
-        <label class="form-label">E-mail</label>
-        <InputText class="form-control" @bind-Value="_model.Email" />
+        <label class="form-label">Usuário ou e-mail</label>
+        <InputText class="form-control" @bind-Value="_model.Login" />
     </div>
     <div class="mb-3">
         <label class="form-label">Senha</label>
@@ -73,14 +73,14 @@
         _error = null;
         try
         {
-            var result = await Api.LoginAsync(_model.Email, _model.Password);
+            var result = await Api.LoginAsync(_model.Login, _model.Password);
             if (result is null)
             {
                 _error = "Não foi possível autenticar.";
                 return;
             }
 
-            AuthState.SignIn(result.Token, _model.Email);
+            AuthState.SignIn(result.Token, _model.Login);
             Nav.NavigateTo("/usos");
         }
         catch (HttpRequestException)
@@ -121,7 +121,7 @@
 
     private class LoginModel
     {
-        public string Email { get; set; } = string.Empty;
+        public string Login { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
     }
 

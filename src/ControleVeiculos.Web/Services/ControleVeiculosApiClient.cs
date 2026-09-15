@@ -9,9 +9,9 @@ namespace ControleVeiculos.Web.Services;
 
 public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 {
-    public async Task<AuthResponse?> LoginAsync(string email, string password)
+    public async Task<AuthResponse?> LoginAsync(string login, string password)
     {
-        var response = await http.PostAsJsonAsync("api/auth/login", new LoginRequest(email, password));
+        var response = await http.PostAsJsonAsync("api/auth/login", new LoginRequest(login, password));
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
     }

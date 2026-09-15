@@ -6,7 +6,7 @@
     <VerticalStackLayout Padding="24" Spacing="12" VerticalOptions="Center">
         <Label Text="Controle de Veículos" FontSize="24" HorizontalOptions="Center" />
 
-        <Entry x:Name="EmailEntry" Placeholder="E-mail" Keyboard="Email" />
+        <Entry x:Name="EmailEntry" Placeholder="Usuário ou e-mail" />
         <Entry x:Name="PasswordEntry" Placeholder="Senha" IsPassword="True" />
 
         <Label x:Name="ErrorLabel" TextColor="Red" IsVisible="False" />

@@ -45,8 +45,10 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .ToListAsync(ct);
 
     public async Task<UsageRecord?> GetEmAndamentoByMotoristaAsync(Guid motoristaId, CancellationToken ct = default) =>
-        await Set.FirstOrDefaultAsync(
-            u => u.MotoristaId == motoristaId && u.Status == UsageRecordStatus.EmAndamento, ct);
+        await Set
+            .Include(u => u.Veiculo)
+            .Include(u => u.Motorista)
+            .FirstOrDefaultAsync(u => u.MotoristaId == motoristaId && u.Status == UsageRecordStatus.EmAndamento, ct);
 
     public async Task AddPhotoAsync(VehiclePhoto photo, CancellationToken ct = default) =>
         await Context.Set<VehiclePhoto>().AddAsync(photo, ct);

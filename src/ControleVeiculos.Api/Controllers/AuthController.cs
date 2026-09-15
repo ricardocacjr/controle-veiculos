@@ -25,7 +25,7 @@ public class AuthController(
 
         var user = new ApplicationUser
         {
-            UserName = request.Email,
+            UserName = request.Login ?? request.Email,
             Email = request.Email,
             NomeCompleto = request.NomeCompleto,
         };
@@ -43,7 +43,7 @@ public class AuthController(
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
-        var user = await userManager.FindByEmailAsync(request.Email);
+        var user = await userManager.FindByNameAsync(request.Login) ?? await userManager.FindByEmailAsync(request.Login);
         if (user is null)
             return Unauthorized();
 
