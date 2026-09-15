@@ -14,7 +14,8 @@ ControleVeiculos.sln
   ControleVeiculos.Domain          -> Entidades e enums (Vehicle, Driver, UsageRecord, ...)
   ControleVeiculos.Application     -> Interfaces de repositório e serviços (casos de uso)
   ControleVeiculos.Infrastructure  -> EF Core (MySQL/Pomelo), ASP.NET Core Identity, repositórios,
-                                       transcrição de voz (Google Cloud Speech-to-Text)
+                                       transcrição de voz (Google Cloud Speech-to-Text) e leitura
+                                       de odômetro por OCR (Google Cloud Vision)
   ControleVeiculos.Shared          -> DTOs/contratos usados pela Api, Web e Mobile
   ControleVeiculos.Api             -> ASP.NET Core Web API (auth JWT, veículos, motoristas, usos)
   ControleVeiculos.Web             -> Blazor Server (painel do gestor)
@@ -30,8 +31,8 @@ SuporteRemoto.
 1. Motorista abre o app mobile, entra com e-mail/senha, escolhe um veículo disponível e informa
    finalidade + odômetro inicial (`POST /api/usagerecords/iniciar`) — o veículo passa a
    `EmUso`.
-2. Durante o uso: fotos (odômetro, avarias), notas de voz (transcritas automaticamente) e
-   abastecimentos podem ser anexados ao registro em andamento.
+2. Durante o uso: fotos (odômetro — com leitura automática sugerida por OCR, avarias), notas de
+   voz (transcritas automaticamente) e abastecimentos podem ser anexados ao registro em andamento.
 3. Ao devolver o veículo, informa o odômetro final (`POST /api/usagerecords/{id}/finalizar`) — o
    veículo volta a `Disponivel` e o odômetro do veículo é atualizado.
 4. O gestor acompanha tudo isso pelo painel web (`/veiculos`, `/motoristas`, `/usos`).
@@ -42,8 +43,8 @@ SuporteRemoto.
 - Workload MAUI (`dotnet workload install maui`) — necessário só para compilar/rodar o app mobile
 - MySQL Server (provider [Pomelo.EntityFrameworkCore.MySql](https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql))
 - Ferramenta `dotnet-ef` (`dotnet tool install --global dotnet-ef`)
-- (Opcional) Conta Google Cloud com a API "Cloud Speech-to-Text" habilitada, para transcrição real
-  das notas de voz — ver seção abaixo
+- (Opcional) Conta Google Cloud com as APIs "Cloud Speech-to-Text" e "Cloud Vision" habilitadas,
+  para transcrição real das notas de voz e leitura automática do odômetro — ver seção abaixo
 
 ## Banco de dados (MySQL)
 
@@ -74,21 +75,37 @@ de design-time usada pelo `dotnet ef` tem prioridade sobre `--startup-project`, 
 credenciais precisam bater com o banco/usuário acima (se mudar a senha local, atualize os dois
 lugares).
 
-## Configuração da transcrição de voz (Google Cloud Speech-to-Text)
+## Configuração de voz e imagem (Google Cloud)
 
-1. Crie um projeto no [Google Cloud Console](https://console.cloud.google.com), habilite a API
-   "Cloud Speech-to-Text" e crie uma conta de serviço com a role "Cloud Speech Client".
-2. Baixe o JSON de credenciais da conta de serviço.
-3. Aponte `GoogleCloud:CredentialsPath` em `appsettings.Development.json` (local) ou a variável de
-   ambiente `GOOGLE_APPLICATION_CREDENTIALS` (produção) para o caminho desse arquivo.
+Transcrição de nota de voz e leitura automática de odômetro usam a **mesma conta de serviço** do
+Google Cloud — uma única credencial cobre os dois.
 
-**Sem essa configuração o app funciona normalmente** — o upload de nota de voz é salvo, só que a
-transcrição fica marcada como `Falhou` (`VoiceNoteStatus`) em vez de `Transcrito`, e pode ser
-reprocessada depois.
+1. Crie um projeto no [Google Cloud Console](https://console.cloud.google.com) (exige cartão de
+   crédito pra ativar faturamento, mesmo usando só a faixa gratuita).
+2. Habilite as APIs **"Cloud Speech-to-Text API"** e **"Cloud Vision API"** nesse projeto
+   ([APIs e Serviços → Biblioteca](https://console.cloud.google.com/apis/library)).
+3. Crie uma conta de serviço (IAM e administrador → Contas de serviço → Criar conta de serviço).
+   Papel "Editor" no projeto é suficiente pra essa fase inicial (dá pra restringir depois pra
+   "Cloud Speech Client" + acesso à Vision API especificamente).
+4. Na conta de serviço criada, gere uma chave JSON ("Chaves" → "Adicionar chave" → "Criar nova
+   chave" → JSON) e baixe o arquivo.
+5. Aponte `GoogleCloud:CredentialsPath` em `appsettings.Development.json` (local) ou a variável de
+   ambiente `GOOGLE_APPLICATION_CREDENTIALS` (produção) para o caminho desse arquivo — **nunca
+   commite esse JSON** (o `.gitignore` já bloqueia `GoogleCloud-credentials*.json`, mas confira se
+   o caminho que você usar cai fora do repositório ou segue esse padrão de nome).
 
-⚠️ **Limitação atual**: usa reconhecimento síncrono (`Recognize`), que só suporta áudios de até
-~1 minuto — suficiente para notas curtas, mas notas mais longas vão falhar. Trocar para
-`LongRunningRecognize` se isso virar um problema real.
+**Sem essa configuração o app funciona normalmente** — upload de foto/nota de voz continua
+funcionando, só que a transcrição fica marcada como `Falhou` (`VoiceNoteStatus`) e a foto de
+odômetro não vem com leitura sugerida (`VehiclePhotoDto.OdometroLido` fica `null`).
+
+⚠️ **Limitações atuais**:
+- Voz: reconhecimento síncrono (`Recognize`), só suporta áudios de até ~1 minuto — notas mais
+  longas vão falhar. Trocar para `LongRunningRecognize` se isso virar um problema real.
+- Odômetro: a leitura por OCR (`GoogleVisionOdometerOcrService`) usa uma heurística simples — pega
+  a sequência de dígitos mais longa detectada na foto (3 a 7 dígitos). Funciona bem pra odômetros
+  digitais nítidos, mas pode errar com reflexo no vidro, ângulo ruim ou painéis analógicos — por
+  isso é sempre **sugestão pra conferência humana** (pré-preenche o campo, mas o motorista/gestor
+  confirma antes de salvar), nunca aplicada direto no odômetro do veículo.
 
 ## Rodando localmente
 

@@ -61,7 +61,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthStorage authStorage)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task UploadFotoAsync(Guid usoId, Stream fileStream, string fileName, string contentType, VehiclePhotoType tipo, string? observacao)
+    public async Task<VehiclePhotoDto?> UploadFotoAsync(Guid usoId, Stream fileStream, string fileName, string contentType, VehiclePhotoType tipo, string? observacao)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, $"api/usagerecords/{usoId}/fotos");
         using var content = new MultipartFormDataContent();
@@ -75,6 +75,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthStorage authStorage)
 
         var response = await http.SendAsync(httpRequest);
         response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<VehiclePhotoDto>();
     }
 
     public async Task UploadNotaDeVozAsync(Guid usoId, Stream fileStream, string fileName, string contentType)

@@ -125,7 +125,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         await EnsureSuccessWithApiErrorAsync(response);
     }
 
-    public async Task UploadFotoAsync(Guid usoId, Stream fileStream, string fileName, string contentType, ControleVeiculos.Domain.Enums.VehiclePhotoType tipo, string? observacao)
+    public async Task<VehiclePhotoDto?> UploadFotoAsync(Guid usoId, Stream fileStream, string fileName, string contentType, ControleVeiculos.Domain.Enums.VehiclePhotoType tipo, string? observacao)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, $"api/usagerecords/{usoId}/fotos");
         using var content = new MultipartFormDataContent();
@@ -139,6 +139,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 
         var response = await http.SendAsync(httpRequest);
         await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<VehiclePhotoDto>();
     }
 
     public async Task UploadNotaDeVozAsync(Guid usoId, Stream fileStream, string fileName, string contentType)

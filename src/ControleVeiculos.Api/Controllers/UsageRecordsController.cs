@@ -17,6 +17,7 @@ public class UsageRecordsController(
     IVehicleRepository vehicleRepository,
     IDriverRepository driverRepository,
     IVoiceTranscriptionService transcriptionService,
+    IOdometerOcrService odometerOcrService,
     IConfiguration configuration,
     IWebHostEnvironment environment) : ControllerBase
 {
@@ -142,10 +143,16 @@ public class UsageRecordsController(
             Observacao = observacao,
         };
 
+        if (tipo is VehiclePhotoType.OdometroInicial or VehiclePhotoType.OdometroFinal)
+        {
+            await using var stream = System.IO.File.OpenRead(fullPath);
+            photo.OdometroLido = await odometerOcrService.ExtractOdometerAsync(stream, ct);
+        }
+
         await usageRepository.AddPhotoAsync(photo, ct);
         await usageRepository.SaveChangesAsync(ct);
 
-        return Ok(new VehiclePhotoDto(photo.Id, photo.Tipo, photo.ArquivoUrl, photo.Observacao, photo.CreatedAt));
+        return Ok(new VehiclePhotoDto(photo.Id, photo.Tipo, photo.ArquivoUrl, photo.Observacao, photo.OdometroLido, photo.CreatedAt));
     }
 
     [HttpPost("{id:guid}/notas-de-voz")]
@@ -241,7 +248,7 @@ public class UsageRecordsController(
         u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?",
         u.Finalidade, u.Origem, u.Destino, u.OdometroInicial, u.OdometroFinal,
         u.IniciadoEm, u.FinalizadoEm, u.Status,
-        u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.CreatedAt)).ToList(),
+        u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
         u.Abastecimentos.Select(a => new FuelEntryDto(a.Id, a.Litros, a.ValorTotal, a.Odometro, a.CreatedAt)).ToList());
 }

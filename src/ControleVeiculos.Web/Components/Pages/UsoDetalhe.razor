@@ -40,7 +40,13 @@ else
         <ul>
             @foreach (var foto in _uso.Fotos)
             {
-                <li>@foto.Tipo — @foto.Observacao</li>
+                <li>
+                    @foto.Tipo — @foto.Observacao
+                    @if (foto.OdometroLido is not null)
+                    {
+                        <text> — <strong>leitura OCR: @foto.OdometroLido km</strong></text>
+                    }
+                </li>
             }
         </ul>
     }

@@ -237,8 +237,17 @@ else
             await stream.CopyToAsync(memoryStream);
             memoryStream.Position = 0;
 
-            await Api.UploadFotoAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType, tipo, null);
-            _actionStatus = "Foto enviada.";
+            var foto = await Api.UploadFotoAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType, tipo, null);
+            if (foto?.OdometroLido is { } lido)
+            {
+                _actionStatus = $"Foto enviada. Leitura sugerida do odômetro: {lido} km — confira antes de usar.";
+                if (tipo == VehiclePhotoType.OdometroFinal)
+                    _finishForm.OdometroFinal = lido;
+            }
+            else
+            {
+                _actionStatus = "Foto enviada.";
+            }
             _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)

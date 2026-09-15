@@ -50,8 +50,10 @@ public partial class TripPage : ContentPage
 
             SetLoading(true);
             await using var stream = await photo.OpenReadAsync();
-            await _api.UploadFotoAsync(_usoId, stream, photo.FileName, "image/jpeg", tipo, observacao);
-            ShowStatus("Foto enviada.");
+            var foto = await _api.UploadFotoAsync(_usoId, stream, photo.FileName, "image/jpeg", tipo, observacao);
+            ShowStatus(foto?.OdometroLido is { } lido
+                ? $"Foto enviada. Leitura sugerida do odômetro: {lido} km — confira antes de usar."
+                : "Foto enviada.");
         }
         catch (FeatureNotSupportedException)
         {

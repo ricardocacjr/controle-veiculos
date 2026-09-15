@@ -16,4 +16,8 @@ public class VehiclePhoto : BaseEntity, ITenantScoped
     public required string ArquivoUrl { get; set; }
 
     public string? Observacao { get; set; }
+
+    /// <summary>Leitura sugerida por OCR (Google Cloud Vision) pra fotos de odômetro — sempre uma
+    /// sugestão pra conferência humana, nunca aplicada automaticamente ao odômetro do veículo.</summary>
+    public int? OdometroLido { get; set; }
 }

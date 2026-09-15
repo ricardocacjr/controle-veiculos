@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ControleVeiculos.Application.Interfaces;
 using ControleVeiculos.Infrastructure.Identity;
+using ControleVeiculos.Infrastructure.Ocr;
 using ControleVeiculos.Infrastructure.Persistence;
 using ControleVeiculos.Infrastructure.Persistence.Repositories;
 using ControleVeiculos.Infrastructure.Transcription;
@@ -36,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IUsageRecordRepository, UsageRecordRepository>();
         services.AddScoped<IVoiceTranscriptionService, GoogleSpeechTranscriptionService>();
+        services.AddScoped<IOdometerOcrService, GoogleVisionOdometerOcrService>();
 
         return services;
     }
