@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.SignalR;
 using ControleVeiculos.Web.Components;
 using ControleVeiculos.Web.Services;
 
@@ -11,6 +12,14 @@ builder.Services.AddRazorComponents()
 builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions>(options =>
 {
     options.DetailedErrors = builder.Environment.IsDevelopment();
+});
+
+// O InputFile (upload de foto/áudio na tela do motorista) transfere o arquivo do navegador pro
+// servidor pelo mesmo circuito SignalR do Blazor Server — sem aumentar isso, o limite padrão
+// (32KB) trava upload de foto de celular bem antes dos 20MB que liberamos no InputFile.
+builder.Services.Configure<HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = 20 * 1024 * 1024;
 });
 
 builder.Services.AddScoped<AuthState>();

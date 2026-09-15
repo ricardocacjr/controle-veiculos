@@ -1,0 +1,351 @@
+@page "/motorista/uso"
+@using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.UsageRecords
+@using ControleVeiculos.Shared.Vehicles
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Meu uso do veículo</PageTitle>
+
+<h1>Uso do veículo</h1>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> (com uma conta Motorista) pra registrar um uso.</p>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-danger">@_loadError</div>
+}
+else if (_loading)
+{
+    <p>Carregando...</p>
+}
+else if (_usoAtual is null)
+{
+    <h2>Iniciar uso</h2>
+
+    <EditForm Model="_startForm" OnValidSubmit="HandleIniciarAsync">
+        <div class="mb-2" style="max-width:400px">
+            <label class="form-label small mb-0">Veículo</label>
+            <InputSelect class="form-select" @bind-Value="_startForm.VeiculoId">
+                <option value="">Selecione...</option>
+                @foreach (var v in _veiculosDisponiveis)
+                {
+                    <option value="@v.Id">@v.Placa — @v.Marca @v.Modelo</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-2" style="max-width:400px">
+            <label class="form-label small mb-0">Finalidade</label>
+            <InputText class="form-control" @bind-Value="_startForm.Finalidade" />
+        </div>
+        <div class="mb-2" style="max-width:400px">
+            <label class="form-label small mb-0">Origem</label>
+            <InputText class="form-control" @bind-Value="_startForm.Origem" />
+        </div>
+        <div class="mb-2" style="max-width:400px">
+            <label class="form-label small mb-0">Destino</label>
+            <InputText class="form-control" @bind-Value="_startForm.Destino" />
+        </div>
+        <div class="mb-3" style="max-width:400px">
+            <label class="form-label small mb-0">Odômetro inicial</label>
+            <InputNumber class="form-control" @bind-Value="_startForm.OdometroInicial" />
+        </div>
+
+        @if (_actionError is not null)
+        {
+            <div class="alert alert-danger">@_actionError</div>
+        }
+
+        <button type="submit" class="btn btn-primary" disabled="@_submitting">Iniciar uso</button>
+    </EditForm>
+}
+else
+{
+    <div class="card mb-3" style="max-width:500px">
+        <div class="card-body">
+            <h5 class="card-title">@_usoAtual.VeiculoPlaca — @_usoAtual.Finalidade</h5>
+            <p class="card-text mb-1">@(_usoAtual.Origem ?? "-") → @(_usoAtual.Destino ?? "-")</p>
+            <p class="card-text mb-1">Odômetro inicial: @_usoAtual.OdometroInicial km</p>
+            <p class="card-text text-muted">Iniciado em @_usoAtual.IniciadoEm.LocalDateTime</p>
+        </div>
+    </div>
+
+    @if (_actionError is not null)
+    {
+        <div class="alert alert-danger">@_actionError</div>
+    }
+    @if (_actionStatus is not null)
+    {
+        <div class="alert alert-success">@_actionStatus</div>
+    }
+
+    <h2>📷 Fotos</h2>
+    <div class="mb-3 d-flex flex-wrap gap-3 align-items-end">
+        <div>
+            <label class="form-label small mb-0 d-block">Odômetro</label>
+            <InputFile OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.OdometroFinal))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
+        </div>
+        <div>
+            <label class="form-label small mb-0 d-block">Avaria</label>
+            <InputFile OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.Avaria))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
+        </div>
+    </div>
+
+    <h2>🎙️ Nota de voz</h2>
+    <div class="mb-3">
+        <InputFile OnChange="HandleVoiceNoteSelectedAsync" accept="audio/*" capture="user" disabled="@_uploadingVoice" />
+        <div class="form-text">No iPhone/Android, isso abre a gravação de áudio direto do navegador.</div>
+    </div>
+
+    <h2>⛽ Abastecimento</h2>
+    <EditForm Model="_fuelForm" OnValidSubmit="HandleFuelAsync">
+        <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+            <div style="width:100px">
+                <label class="form-label small mb-0">Litros</label>
+                <InputNumber class="form-control" @bind-Value="_fuelForm.Litros" />
+            </div>
+            <div style="width:120px">
+                <label class="form-label small mb-0">Valor (R$)</label>
+                <InputNumber class="form-control" @bind-Value="_fuelForm.ValorTotal" />
+            </div>
+            <div style="width:110px">
+                <label class="form-label small mb-0">Odômetro</label>
+                <InputNumber class="form-control" @bind-Value="_fuelForm.Odometro" />
+            </div>
+            <button type="submit" class="btn btn-outline-primary" disabled="@_submitting">Registrar</button>
+        </div>
+    </EditForm>
+
+    @if (_detalhe is not null)
+    {
+        <h2>Anexado até agora</h2>
+        <ul>
+            <li>Fotos: @_detalhe.Fotos.Count</li>
+            <li>Notas de voz: @_detalhe.NotasDeVoz.Count</li>
+            <li>Abastecimentos: @_detalhe.Abastecimentos.Count</li>
+        </ul>
+    }
+
+    <h2>🏁 Finalizar uso</h2>
+    <EditForm Model="_finishForm" OnValidSubmit="HandleFinalizarAsync">
+        <div class="d-flex flex-wrap gap-2 align-items-end">
+            <div style="width:130px">
+                <label class="form-label small mb-0">Odômetro final</label>
+                <InputNumber class="form-control" @bind-Value="_finishForm.OdometroFinal" />
+            </div>
+            <button type="submit" class="btn btn-danger" disabled="@_submitting">Finalizar uso</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _submitting;
+    private bool _uploadingPhoto;
+    private bool _uploadingVoice;
+    private string? _loadError;
+    private string? _actionError;
+    private string? _actionStatus;
+    private UsageRecordDto? _usoAtual;
+    private UsageRecordDetailDto? _detalhe;
+    private List<VehicleDto> _veiculosDisponiveis = [];
+    private readonly StartForm _startForm = new();
+    private readonly FuelForm _fuelForm = new();
+    private readonly FinishForm _finishForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            _usoAtual = await Api.GetUsoAtualAsync();
+            if (_usoAtual is null)
+            {
+                _veiculosDisponiveis = (await Api.GetVehiclesAsync())
+                    .Where(v => v.Status == VehicleStatus.Disponivel)
+                    .ToList();
+            }
+            else
+            {
+                _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = $"Não foi possível carregar: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleIniciarAsync()
+    {
+        _submitting = true;
+        _actionError = null;
+        try
+        {
+            if (!Guid.TryParse(_startForm.VeiculoId, out var veiculoId))
+            {
+                _actionError = "Selecione um veículo.";
+                return;
+            }
+
+            await Api.IniciarUsoAsync(new StartUsageRequest(
+                veiculoId, _startForm.Finalidade, _startForm.Origem, _startForm.Destino, _startForm.OdometroInicial));
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _actionError = $"Não foi possível iniciar o uso: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task HandlePhotoSelectedAsync(InputFileChangeEventArgs e, VehiclePhotoType tipo)
+    {
+        if (_usoAtual is null)
+            return;
+
+        _uploadingPhoto = true;
+        _actionError = null;
+        _actionStatus = null;
+        try
+        {
+            var file = e.File;
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            await Api.UploadFotoAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType, tipo, null);
+            _actionStatus = "Foto enviada.";
+            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _actionError = $"Não foi possível enviar a foto: {ex.Message}";
+        }
+        finally
+        {
+            _uploadingPhoto = false;
+        }
+    }
+
+    private async Task HandleVoiceNoteSelectedAsync(InputFileChangeEventArgs e)
+    {
+        if (_usoAtual is null)
+            return;
+
+        _uploadingVoice = true;
+        _actionError = null;
+        _actionStatus = null;
+        try
+        {
+            var file = e.File;
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            await Api.UploadNotaDeVozAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType);
+            _actionStatus = "Nota de voz enviada — transcrição pode levar alguns segundos.";
+            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _actionError = $"Não foi possível enviar a nota de voz: {ex.Message}";
+        }
+        finally
+        {
+            _uploadingVoice = false;
+        }
+    }
+
+    private async Task HandleFuelAsync()
+    {
+        if (_usoAtual is null)
+            return;
+
+        _submitting = true;
+        _actionError = null;
+        try
+        {
+            await Api.AddAbastecimentoAsync(_usoAtual.Id, new AddFuelEntryRequest(_fuelForm.Litros, _fuelForm.ValorTotal, _fuelForm.Odometro));
+            _actionStatus = "Abastecimento registrado.";
+            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            _actionError = $"Não foi possível registrar o abastecimento: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task HandleFinalizarAsync()
+    {
+        if (_usoAtual is null)
+            return;
+
+        _submitting = true;
+        _actionError = null;
+        try
+        {
+            await Api.FinalizarUsoAsync(_usoAtual.Id, _finishForm.OdometroFinal);
+            _usoAtual = null;
+            _detalhe = null;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _actionError = $"Não foi possível finalizar o uso: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private class StartForm
+    {
+        public string VeiculoId { get; set; } = string.Empty;
+        public string Finalidade { get; set; } = string.Empty;
+        public string? Origem { get; set; }
+        public string? Destino { get; set; }
+        public int OdometroInicial { get; set; }
+    }
+
+    private class FuelForm
+    {
+        public decimal Litros { get; set; }
+        public decimal ValorTotal { get; set; }
+        public int Odometro { get; set; }
+    }
+
+    private class FinishForm
+    {
+        public int OdometroFinal { get; set; }
+    }
+}
