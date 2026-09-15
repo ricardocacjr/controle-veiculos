@@ -8,7 +8,7 @@ using ControleVeiculos.Shared.Drivers;
 namespace ControleVeiculos.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
+[Authorize]
 [Route("api/[controller]")]
 public class DriversController(IDriverRepository driverRepository) : ControllerBase
 {
@@ -27,6 +27,7 @@ public class DriversController(IDriverRepository driverRepository) : ControllerB
     }
 
     [HttpPost]
+    [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
     public async Task<ActionResult<DriverDto>> Create(CreateDriverRequest request, CancellationToken ct)
     {
         var driver = new Driver
@@ -45,6 +46,7 @@ public class DriversController(IDriverRepository driverRepository) : ControllerB
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var driver = await driverRepository.GetByIdAsync(id, ct);
