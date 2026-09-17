@@ -59,6 +59,36 @@ Em todos os casos de leitura por foto (odômetro, painel, comprovante), o valor 
 **sugestão pré-preenchida, nunca aplicada sem confirmação** — o motorista/gestor ainda revisa e
 pode corrigir antes de salvar.
 
+## Ambiente de produção (Render + Aiven)
+
+A Api e o painel Web estão publicados e acessíveis pela internet:
+- Api: https://controle-veiculos-api-v3l0.onrender.com
+- Web: https://controle-veiculos-web-hqyg.onrender.com
+
+Deploy via [Render](https://render.com) (Web Services em Docker, build a partir de
+[`src/ControleVeiculos.Api/Dockerfile`](src/ControleVeiculos.Api/Dockerfile) e
+[`src/ControleVeiculos.Web/Dockerfile`](src/ControleVeiculos.Web/Dockerfile)) + banco
+[Aiven](https://aiven.io) MySQL gerenciado — mesmo padrão do SuporteRemoto, reaproveitando o
+mesmo servidor MySQL free (Aiven só libera um serviço MySQL grátis por organização) com um banco
+`controle_veiculos_db` separado nele. Segredos (connection string, `Jwt:Key`) ficam só nas
+variáveis de ambiente do Render; a credencial do Google Cloud (Speech-to-Text + Vision) é um
+"Secret File" do Render, montado em `/etc/secrets/google-credentials.json` — nada disso é
+versionado.
+
+Motivo do deploy: o app usa geolocalização do navegador (`navigator.geolocation`) pra preencher a
+origem automaticamente ao registrar saída, e o iOS Safari bloqueia essa API fora de um contexto
+seguro (HTTPS). Rodando local por IP/HTTP simples esse recurso falhava silenciosamente — o Render
+resolve isso de vez, já que serve tudo com TLS.
+
+Como o app não guarda foto/áudio de forma persistente (decisão deliberada — ver "Limitações
+conhecidas"), a base de produção começa vazia e foi populada à parte do banco local de
+desenvolvimento: veículo (`XYZ9A88`), empresas (Voglio/OAK/Uso Pessoal) e os motoristas de login
+curto (DANI/ERICK/JONATHAN/JOSLEY/RICARDO/GIL, senha `senha123`) foram recriados direto contra a
+Api de produção.
+
+Planos free do Render dormem depois de um tempo sem uso — a primeira requisição depois disso pode
+demorar ~50s pra "acordar" o serviço.
+
 ## Pré-requisitos
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
@@ -182,8 +212,9 @@ escondidos:
    isso exigiria criar o motorista via Api passando o `UserId` do usuário já cadastrado. Sem esse
    vínculo, o app mobile não encontra o `Driver` do usuário logado.
 3. **Fotos e notas de voz em disco local**: salvas em `App_Data/` dentro do container/máquina —
-   efêmero em PaaS como Render (some a cada redeploy). Trocar por armazenamento externo
-   (S3-compatível) antes de qualquer deploy real.
+   efêmero em PaaS como Render (some a cada redeploy). Decisão deliberada, não pendência: o
+   usuário confirmou que não precisa guardar foto/áudio depois do uso, então isso ficou de fora
+   do escopo do deploy em produção.
 4. **Transcrição de voz síncrona**: ver limitação de ~1 minuto acima.
 5. **App mobile não testado em dispositivo real**: foi validado compilando para Windows (sem
    Android SDK neste ambiente) — os fluxos de câmera/microfone/permissões foram implementados
@@ -194,7 +225,5 @@ escondidos:
 
 1. Vincular motorista ↔ usuário logado direto na tela de cadastro do painel web.
 2. Testar o app mobile em um dispositivo/emulador Android real (câmera, microfone, upload).
-3. Trocar armazenamento de fotos/áudio local por um provedor externo (S3-compatível).
-4. Fechar a simplificação de cadastro sem aprovação (item 1 das limitações acima).
-5. Deploy em produção (Render + Aiven, mesmo padrão do SuporteRemoto) quando o fluxo estiver
-   validado localmente.
+3. Fechar a simplificação de cadastro sem aprovação (item 1 das limitações acima).
+4. Apontar o app mobile (`AppConfig`) pra URL de produção da Api em vez de `localhost`/`10.0.2.2`.
