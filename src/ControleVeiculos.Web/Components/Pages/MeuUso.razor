@@ -298,9 +298,12 @@ else
             if (!string.IsNullOrWhiteSpace(leitura?.EnderecoSugerido))
                 _startForm.Origem = leitura!.EnderecoSugerido;
 
-            _actionStatus = leitura is { OdometroLido: null, EnderecoSugerido: null }
+            var mensagem = leitura is { OdometroLido: null, EnderecoSugerido: null }
                 ? "Não consegui ler nada dessa foto — preencha manualmente."
                 : "Foto lida — confira os campos preenchidos antes de iniciar.";
+            if (geo?.Error is not null)
+                mensagem += $" (Localização não capturada: {geo.Error})";
+            _actionStatus = mensagem;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
@@ -492,7 +495,8 @@ else
 
     private class GeoPosition
     {
-        public double Lat { get; set; }
-        public double Lng { get; set; }
+        public double? Lat { get; set; }
+        public double? Lng { get; set; }
+        public string? Error { get; set; }
     }
 }
