@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ControleVeiculos.Application.Interfaces;
+using ControleVeiculos.Infrastructure.Geocoding;
 using ControleVeiculos.Infrastructure.Identity;
 using ControleVeiculos.Infrastructure.Ocr;
 using ControleVeiculos.Infrastructure.Persistence;
@@ -38,6 +39,14 @@ public static class DependencyInjection
         services.AddScoped<IUsageRecordRepository, UsageRecordRepository>();
         services.AddScoped<IVoiceTranscriptionService, GoogleSpeechTranscriptionService>();
         services.AddScoped<IOdometerOcrService, GoogleVisionOdometerOcrService>();
+        services.AddScoped<IFuelReceiptOcrService, GoogleVisionFuelReceiptOcrService>();
+
+        services.AddHttpClient<IGeocodingService, NominatimGeocodingService>(client =>
+        {
+            client.BaseAddress = new Uri("https://nominatim.openstreetmap.org/");
+            // Exigido pela política de uso do Nominatim: identificar a aplicação no User-Agent.
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("ControleVeiculos/1.0 (app interno de frota)");
+        });
 
         return services;
     }

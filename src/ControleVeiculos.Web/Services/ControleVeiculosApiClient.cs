@@ -108,6 +108,38 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<UsageRecordDto>();
     }
 
+    public async Task<PainelReadingDto?> LerPainelAsync(Stream fileStream, string fileName, string contentType, double? latitude, double? longitude)
+    {
+        using var httpRequest = AuthorizedRequest(HttpMethod.Post, "api/usagerecords/ler-painel");
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(fileStream);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(streamContent, "file", fileName);
+        if (latitude is not null)
+            content.Add(new StringContent(latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "latitude");
+        if (longitude is not null)
+            content.Add(new StringContent(longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "longitude");
+        httpRequest.Content = content;
+
+        var response = await http.SendAsync(httpRequest);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<PainelReadingDto>();
+    }
+
+    public async Task<FuelReceiptReadingDto?> LerComprovanteAsync(Guid usoId, Stream fileStream, string fileName, string contentType)
+    {
+        using var httpRequest = AuthorizedRequest(HttpMethod.Post, $"api/usagerecords/{usoId}/abastecimentos/ler-comprovante");
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(fileStream);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(streamContent, "file", fileName);
+        httpRequest.Content = content;
+
+        var response = await http.SendAsync(httpRequest);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<FuelReceiptReadingDto>();
+    }
+
     public async Task<UsageRecordDto?> IniciarUsoAsync(StartUsageRequest request)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, "api/usagerecords/iniciar");

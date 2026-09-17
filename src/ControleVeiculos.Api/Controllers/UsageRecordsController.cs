@@ -18,6 +18,8 @@ public class UsageRecordsController(
     IDriverRepository driverRepository,
     IVoiceTranscriptionService transcriptionService,
     IOdometerOcrService odometerOcrService,
+    IFuelReceiptOcrService fuelReceiptOcrService,
+    IGeocodingService geocodingService,
     IConfiguration configuration,
     IWebHostEnvironment environment) : ControllerBase
 {
@@ -73,14 +75,22 @@ public class UsageRecordsController(
         if (vehicle.Status != VehicleStatus.Disponivel)
             return BadRequest("Veículo não está disponível.");
 
+        // Origem já resolvida na tela (leitura do painel) chega pronta; se só vierem as
+        // coordenadas (cliente sem essa etapa), resolve aqui como fallback.
+        var origem = request.Origem;
+        if (string.IsNullOrWhiteSpace(origem) && request.Latitude is { } lat && request.Longitude is { } lon)
+            origem = await geocodingService.ReverseGeocodeAsync(lat, lon, ct);
+
         var usage = new UsageRecord
         {
             VeiculoId = vehicle.Id,
             MotoristaId = driver.Id,
             Finalidade = request.Finalidade,
-            Origem = request.Origem,
+            Origem = origem,
             Destino = request.Destino,
             OdometroInicial = request.OdometroInicial,
+            LatitudeInicial = request.Latitude,
+            LongitudeInicial = request.Longitude,
         };
 
         vehicle.Status = VehicleStatus.EmUso;
@@ -92,6 +102,30 @@ public class UsageRecordsController(
         usage.Veiculo = vehicle;
         usage.Motorista = driver;
         return CreatedAtAction(nameof(GetById), new { id = usage.Id }, ToDto(usage));
+    }
+
+    /// <summary>
+    /// Lê uma foto do painel do veículo (odômetro) e, se coordenadas forem enviadas, resolve o
+    /// endereço por geocodificação reversa — usado pra pré-preencher o formulário de "iniciar
+    /// uso" antes de o registro existir (por isso não fica embaixo de {id:guid}). O motorista
+    /// ainda confirma os valores antes de enviar o POST /iniciar de verdade.
+    /// </summary>
+    [HttpPost("ler-painel")]
+    [Authorize(Roles = Roles.Motorista)]
+    public async Task<ActionResult<PainelReadingDto>> LerPainel(IFormFile file, [FromForm] double? latitude, [FromForm] double? longitude, CancellationToken ct)
+    {
+        if (file.Length == 0)
+            return BadRequest("Arquivo vazio.");
+
+        int? odometro;
+        await using (var stream = file.OpenReadStream())
+            odometro = await odometerOcrService.ExtractOdometerAsync(stream, ct);
+
+        string? endereco = null;
+        if (latitude is { } lat && longitude is { } lon)
+            endereco = await geocodingService.ReverseGeocodeAsync(lat, lon, ct);
+
+        return Ok(new PainelReadingDto(odometro, endereco));
     }
 
     [HttpPost("{id:guid}/finalizar")]
@@ -201,12 +235,45 @@ public class UsageRecordsController(
             Litros = request.Litros,
             ValorTotal = request.ValorTotal,
             Odometro = request.Odometro,
+            ValorPorLitro = request.ValorPorLitro,
         };
 
         await usageRepository.AddFuelEntryAsync(entry, ct);
         await usageRepository.SaveChangesAsync(ct);
 
-        return Ok(new FuelEntryDto(entry.Id, entry.Litros, entry.ValorTotal, entry.Odometro, entry.CreatedAt));
+        return Ok(new FuelEntryDto(entry.Id, entry.Litros, entry.ValorTotal, entry.ValorPorLitro, entry.Odometro, entry.CreatedAt));
+    }
+
+    /// <summary>
+    /// Lê uma foto de nota fiscal/cupom de abastecimento e sugere litros/valor total/valor por
+    /// litro. Também salva a foto (tipo ComprovanteAbastecimento) pra auditoria, mesmo que a
+    /// leitura falhe. O motorista confirma os valores antes de enviar o POST /abastecimentos.
+    /// </summary>
+    [HttpPost("{id:guid}/abastecimentos/ler-comprovante")]
+    public async Task<ActionResult<FuelReceiptReadingDto>> LerComprovante(Guid id, IFormFile file, CancellationToken ct)
+    {
+        var usage = await usageRepository.GetWithDetailsAsync(id, ct);
+        if (usage is null || !await CanAccessAsync(usage, ct))
+            return NotFound();
+        if (file.Length == 0)
+            return BadRequest("Arquivo vazio.");
+
+        var fullPath = await SaveFileAsync(file, "fotos", id, ct);
+
+        FuelReceiptReading leitura;
+        await using (var stream = System.IO.File.OpenRead(fullPath))
+            leitura = await fuelReceiptOcrService.ExtractAsync(stream, ct);
+
+        var photo = new VehiclePhoto
+        {
+            UsoId = id,
+            Tipo = VehiclePhotoType.ComprovanteAbastecimento,
+            ArquivoUrl = fullPath,
+        };
+        await usageRepository.AddPhotoAsync(photo, ct);
+        await usageRepository.SaveChangesAsync(ct);
+
+        return Ok(new FuelReceiptReadingDto(leitura.Litros, leitura.ValorTotal, leitura.ValorPorLitro));
     }
 
     private async Task<string> SaveFileAsync(IFormFile file, string subpasta, Guid usageId, CancellationToken ct)
@@ -250,5 +317,5 @@ public class UsageRecordsController(
         u.IniciadoEm, u.FinalizadoEm, u.Status,
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
-        u.Abastecimentos.Select(a => new FuelEntryDto(a.Id, a.Litros, a.ValorTotal, a.Odometro, a.CreatedAt)).ToList());
+        u.Abastecimentos.Select(a => new FuelEntryDto(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt)).ToList());
 }

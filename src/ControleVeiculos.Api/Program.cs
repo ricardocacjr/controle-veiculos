@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -8,6 +9,14 @@ using ControleVeiculos.Api.Auth;
 using ControleVeiculos.Infrastructure;
 using ControleVeiculos.Infrastructure.Identity;
 using ControleVeiculos.Infrastructure.Persistence;
+
+// Sem isso, model binding de [FromForm] double (ex: latitude/longitude em LerPainel) interpreta
+// "-23.5613" com as regras de decimal do SO do servidor — em pt-BR isso vira "-235613" (ponto
+// tratado como separador de milhar), corrompendo qualquer coordenada enviada. Api não tem saída
+// formatada pra usuário (JSON é sempre invariante), então não há motivo pra usar a cultura local
+// aqui — nem no bind de entrada nem em qualquer formatação futura.
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -18,6 +18,12 @@ public class UsageRecord : BaseEntity, ITenantScoped
     public string? Origem { get; set; }
     public string? Destino { get; set; }
 
+    /// <summary>Coordenadas capturadas pelo navegador/app no momento de iniciar o uso — usadas
+    /// pra resolver <see cref="Origem"/> automaticamente por geocodificação reversa quando
+    /// disponíveis. Guardadas pra auditoria/futuro mapa, não exibidas na tela ainda.</summary>
+    public double? LatitudeInicial { get; set; }
+    public double? LongitudeInicial { get; set; }
+
     public int OdometroInicial { get; set; }
     public int? OdometroFinal { get; set; }
 

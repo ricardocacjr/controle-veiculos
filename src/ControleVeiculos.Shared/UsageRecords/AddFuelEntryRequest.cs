@@ -1,3 +1,3 @@
 namespace ControleVeiculos.Shared.UsageRecords;
 
-public record AddFuelEntryRequest(decimal Litros, decimal ValorTotal, int Odometro);
+public record AddFuelEntryRequest(decimal Litros, decimal ValorTotal, int Odometro, decimal? ValorPorLitro = null);

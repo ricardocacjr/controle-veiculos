@@ -5,6 +5,7 @@
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Meu uso do veículo</PageTitle>
 
@@ -25,6 +26,15 @@ else if (_loading)
 else if (_usoAtual is null)
 {
     <h2>Iniciar uso</h2>
+
+    <div class="mb-3" style="max-width:400px">
+        <label class="form-label small mb-0 d-block">📷 Foto do painel (opcional — preenche odômetro e origem automaticamente)</label>
+        <InputFile OnChange="HandlePainelPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoPainel" />
+        @if (_lendoPainel)
+        {
+            <div class="form-text">Lendo foto...</div>
+        }
+    </div>
 
     <EditForm Model="_startForm" OnValidSubmit="HandleIniciarAsync">
         <div class="mb-2" style="max-width:400px">
@@ -57,6 +67,10 @@ else if (_usoAtual is null)
         @if (_actionError is not null)
         {
             <div class="alert alert-danger">@_actionError</div>
+        }
+        @if (_actionStatus is not null)
+        {
+            <div class="alert alert-success">@_actionStatus</div>
         }
 
         <button type="submit" class="btn btn-primary" disabled="@_submitting">Iniciar uso</button>
@@ -101,6 +115,14 @@ else
     </div>
 
     <h2>⛽ Abastecimento</h2>
+    <div class="mb-2" style="max-width:400px">
+        <label class="form-label small mb-0 d-block">📷 Foto da nota fiscal ou cupom (opcional — preenche litros e valores automaticamente)</label>
+        <InputFile OnChange="HandleReceiptPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoComprovante" />
+        @if (_lendoComprovante)
+        {
+            <div class="form-text">Lendo comprovante...</div>
+        }
+    </div>
     <EditForm Model="_fuelForm" OnValidSubmit="HandleFuelAsync">
         <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
             <div style="width:100px">
@@ -108,8 +130,12 @@ else
                 <InputNumber class="form-control" @bind-Value="_fuelForm.Litros" />
             </div>
             <div style="width:120px">
-                <label class="form-label small mb-0">Valor (R$)</label>
+                <label class="form-label small mb-0">Valor total (R$)</label>
                 <InputNumber class="form-control" @bind-Value="_fuelForm.ValorTotal" />
+            </div>
+            <div style="width:110px">
+                <label class="form-label small mb-0">Valor/litro (R$)</label>
+                <InputNumber class="form-control" @bind-Value="_fuelForm.ValorPorLitro" />
             </div>
             <div style="width:110px">
                 <label class="form-label small mb-0">Odômetro</label>
@@ -146,6 +172,8 @@ else
     private bool _submitting;
     private bool _uploadingPhoto;
     private bool _uploadingVoice;
+    private bool _lendoPainel;
+    private bool _lendoComprovante;
     private string? _loadError;
     private string? _actionError;
     private string? _actionStatus;
@@ -221,6 +249,41 @@ else
         }
     }
 
+    private async Task HandlePainelPhotoSelectedAsync(InputFileChangeEventArgs e)
+    {
+        _lendoPainel = true;
+        _actionError = null;
+        _actionStatus = null;
+        try
+        {
+            var geo = await JS.InvokeAsync<GeoPosition?>("getGeolocation");
+
+            var file = e.File;
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            var leitura = await Api.LerPainelAsync(memoryStream, file.Name, file.ContentType, geo?.Lat, geo?.Lng);
+            if (leitura?.OdometroLido is { } lido)
+                _startForm.OdometroInicial = lido;
+            if (!string.IsNullOrWhiteSpace(leitura?.EnderecoSugerido))
+                _startForm.Origem = leitura!.EnderecoSugerido;
+
+            _actionStatus = leitura is { OdometroLido: null, EnderecoSugerido: null }
+                ? "Não consegui ler nada dessa foto — preencha manualmente."
+                : "Foto lida — confira os campos preenchidos antes de iniciar.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _actionError = $"Não foi possível ler a foto do painel: {ex.Message}";
+        }
+        finally
+        {
+            _lendoPainel = false;
+        }
+    }
+
     private async Task HandlePhotoSelectedAsync(InputFileChangeEventArgs e, VehiclePhotoType tipo)
     {
         if (_usoAtual is null)
@@ -290,6 +353,44 @@ else
         }
     }
 
+    private async Task HandleReceiptPhotoSelectedAsync(InputFileChangeEventArgs e)
+    {
+        if (_usoAtual is null)
+            return;
+
+        _lendoComprovante = true;
+        _actionError = null;
+        _actionStatus = null;
+        try
+        {
+            var file = e.File;
+            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            var leitura = await Api.LerComprovanteAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType);
+            if (leitura?.Litros is { } litros)
+                _fuelForm.Litros = litros;
+            if (leitura?.ValorTotal is { } valorTotal)
+                _fuelForm.ValorTotal = valorTotal;
+            if (leitura?.ValorPorLitro is { } valorPorLitro)
+                _fuelForm.ValorPorLitro = valorPorLitro;
+
+            _actionStatus = leitura is { Litros: null, ValorTotal: null, ValorPorLitro: null }
+                ? "Não consegui ler nada desse comprovante — preencha manualmente."
+                : "Comprovante lido — confira os valores antes de registrar.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _actionError = $"Não foi possível ler o comprovante: {ex.Message}";
+        }
+        finally
+        {
+            _lendoComprovante = false;
+        }
+    }
+
     private async Task HandleFuelAsync()
     {
         if (_usoAtual is null)
@@ -299,7 +400,8 @@ else
         _actionError = null;
         try
         {
-            await Api.AddAbastecimentoAsync(_usoAtual.Id, new AddFuelEntryRequest(_fuelForm.Litros, _fuelForm.ValorTotal, _fuelForm.Odometro));
+            await Api.AddAbastecimentoAsync(_usoAtual.Id, new AddFuelEntryRequest(
+                _fuelForm.Litros, _fuelForm.ValorTotal, _fuelForm.Odometro, _fuelForm.ValorPorLitro));
             _actionStatus = "Abastecimento registrado.";
             _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
         }
@@ -350,11 +452,18 @@ else
     {
         public decimal Litros { get; set; }
         public decimal ValorTotal { get; set; }
+        public decimal? ValorPorLitro { get; set; }
         public int Odometro { get; set; }
     }
 
     private class FinishForm
     {
         public int OdometroFinal { get; set; }
+    }
+
+    private class GeoPosition
+    {
+        public double Lat { get; set; }
+        public double Lng { get; set; }
     }
 }

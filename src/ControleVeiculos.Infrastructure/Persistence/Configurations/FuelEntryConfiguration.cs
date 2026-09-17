@@ -10,5 +10,6 @@ public class FuelEntryConfiguration : IEntityTypeConfiguration<FuelEntry>
     {
         builder.Property(f => f.Litros).HasPrecision(10, 2);
         builder.Property(f => f.ValorTotal).HasPrecision(10, 2);
+        builder.Property(f => f.ValorPorLitro).HasPrecision(10, 3);
     }
 }

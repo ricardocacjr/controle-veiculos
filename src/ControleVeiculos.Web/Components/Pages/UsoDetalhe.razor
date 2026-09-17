@@ -80,7 +80,8 @@ else
             <thead>
                 <tr>
                     <th>Litros</th>
-                    <th>Valor</th>
+                    <th>Valor total</th>
+                    <th>Valor/litro</th>
                     <th>Odômetro</th>
                 </tr>
             </thead>
@@ -90,6 +91,7 @@ else
                     <tr>
                         <td>@abastecimento.Litros L</td>
                         <td>R$ @abastecimento.ValorTotal</td>
+                        <td>@(abastecimento.ValorPorLitro is { } vpl ? $"R$ {vpl}" : "-")</td>
                         <td>@abastecimento.Odometro km</td>
                     </tr>
                 }

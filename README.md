@@ -14,8 +14,9 @@ ControleVeiculos.sln
   ControleVeiculos.Domain          -> Entidades e enums (Vehicle, Driver, UsageRecord, ...)
   ControleVeiculos.Application     -> Interfaces de repositório e serviços (casos de uso)
   ControleVeiculos.Infrastructure  -> EF Core (MySQL/Pomelo), ASP.NET Core Identity, repositórios,
-                                       transcrição de voz (Google Cloud Speech-to-Text) e leitura
-                                       de odômetro por OCR (Google Cloud Vision)
+                                       transcrição de voz (Google Cloud Speech-to-Text), leitura
+                                       de odômetro e de comprovante de abastecimento por OCR
+                                       (Google Cloud Vision), geocodificação reversa (Nominatim)
   ControleVeiculos.Shared          -> DTOs/contratos usados pela Api, Web e Mobile
   ControleVeiculos.Api             -> ASP.NET Core Web API (auth JWT, veículos, motoristas, usos)
   ControleVeiculos.Web             -> Blazor Server (painel do gestor)
@@ -28,14 +29,25 @@ SuporteRemoto.
 
 ### Fluxo de uso
 
-1. Motorista abre o app mobile, entra com e-mail/senha, escolhe um veículo disponível e informa
-   finalidade + odômetro inicial (`POST /api/usagerecords/iniciar`) — o veículo passa a
-   `EmUso`.
-2. Durante o uso: fotos (odômetro — com leitura automática sugerida por OCR, avarias), notas de
+1. Motorista abre o app (mobile ou a tela `/motorista/uso` do painel web), entra com login curto
+   ou e-mail, e **antes de iniciar o uso** pode tirar uma foto do painel do veículo
+   (`POST /api/usagerecords/ler-painel`) — lê o odômetro por OCR e, se o navegador/app compartilhar
+   a localização, resolve o endereço por geocodificação reversa, pré-preenchendo odômetro inicial
+   e origem (ainda editáveis).
+2. Confirma os campos (finalidade, veículo, etc.) e inicia o uso (`POST /api/usagerecords/iniciar`)
+   — o veículo passa a `EmUso`.
+3. Durante o uso: fotos (odômetro — com leitura automática sugerida por OCR, avarias), notas de
    voz (transcritas automaticamente) e abastecimentos podem ser anexados ao registro em andamento.
-3. Ao devolver o veículo, informa o odômetro final (`POST /api/usagerecords/{id}/finalizar`) — o
+   Abastecimento também aceita uma foto da nota fiscal/cupom
+   (`POST /api/usagerecords/{id}/abastecimentos/ler-comprovante`), que sugere litros, valor total
+   e valor por litro.
+4. Ao devolver o veículo, informa o odômetro final (`POST /api/usagerecords/{id}/finalizar`) — o
    veículo volta a `Disponivel` e o odômetro do veículo é atualizado.
-4. O gestor acompanha tudo isso pelo painel web (`/veiculos`, `/motoristas`, `/usos`).
+5. O gestor acompanha tudo isso pelo painel web (`/veiculos`, `/motoristas`, `/usos`).
+
+Em todos os casos de leitura por foto (odômetro, painel, comprovante), o valor lido é sempre uma
+**sugestão pré-preenchida, nunca aplicada sem confirmação** — o motorista/gestor ainda revisa e
+pode corrigir antes de salvar.
 
 ## Pré-requisitos
 
@@ -95,17 +107,27 @@ Google Cloud — uma única credencial cobre os dois.
    o caminho que você usar cai fora do repositório ou segue esse padrão de nome).
 
 **Sem essa configuração o app funciona normalmente** — upload de foto/nota de voz continua
-funcionando, só que a transcrição fica marcada como `Falhou` (`VoiceNoteStatus`) e a foto de
-odômetro não vem com leitura sugerida (`VehiclePhotoDto.OdometroLido` fica `null`).
+funcionando, só que a transcrição fica marcada como `Falhou` (`VoiceNoteStatus`) e as fotos de
+odômetro/comprovante não vêm com leitura sugerida (campos ficam `null`).
+
+A **geocodificação reversa** (endereço a partir de latitude/longitude) usa
+[Nominatim](https://nominatim.openstreetmap.org) (OpenStreetMap) — gratuito, sem conta nem chave
+de API, diferente dos serviços de voz/imagem. Único cuidado é não abusar da taxa de uso (a
+política pede no máximo ~1 requisição/segundo; o uso deste app fica bem abaixo disso).
 
 ⚠️ **Limitações atuais**:
 - Voz: reconhecimento síncrono (`Recognize`), só suporta áudios de até ~1 minuto — notas mais
   longas vão falhar. Trocar para `LongRunningRecognize` se isso virar um problema real.
 - Odômetro: a leitura por OCR (`GoogleVisionOdometerOcrService`) usa uma heurística simples — pega
   a sequência de dígitos mais longa detectada na foto (3 a 7 dígitos). Funciona bem pra odômetros
-  digitais nítidos, mas pode errar com reflexo no vidro, ângulo ruim ou painéis analógicos — por
-  isso é sempre **sugestão pra conferência humana** (pré-preenche o campo, mas o motorista/gestor
-  confirma antes de salvar), nunca aplicada direto no odômetro do veículo.
+  digitais nítidos, mas pode errar com reflexo no vidro, ângulo ruim ou painéis analógicos.
+- Comprovante de abastecimento: a leitura (`GoogleVisionFuelReceiptOcrService`) procura
+  litros/valor unitário/valor total perto de palavras-chave ("LITRO", "UNIT"/"PREÇO", "TOTAL"),
+  olhando a linha da palavra-chave e as duas seguintes (cupons costumam quebrar rótulo e valor em
+  linhas diferentes). Layout de cupom fiscal varia muito no Brasil — funciona bem nos formatos mais
+  comuns, mas não é garantido pra todo layout.
+- Em todos os casos acima: é sempre **sugestão pra conferência humana** (pré-preenche o campo, mas
+  o motorista/gestor confirma antes de salvar), nunca aplicada direto sem revisão.
 
 ## Rodando localmente
 
