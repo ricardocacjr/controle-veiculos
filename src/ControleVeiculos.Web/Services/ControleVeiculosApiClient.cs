@@ -12,16 +12,38 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 {
     public async Task<AuthResponse?> LoginAsync(string login, string password)
     {
-        var response = await http.PostAsJsonAsync("api/auth/login", new LoginRequest(login, password));
+        var response = await PostAsJsonWithColdStartRetryAsync("api/auth/login", new LoginRequest(login, password));
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
     }
 
     public async Task<AuthResponse?> RegisterAsync(string nomeCompleto, string email, string password, string role)
     {
-        var response = await http.PostAsJsonAsync("api/auth/register", new RegisterRequest(nomeCompleto, email, password, role));
+        var response = await PostAsJsonWithColdStartRetryAsync("api/auth/register", new RegisterRequest(nomeCompleto, email, password, role));
         await EnsureSuccessWithApiErrorAsync(response);
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
+    }
+
+    // O plano free do Render "dorme" a Api depois de um tempo sem uso: a primeira requisição
+    // depois disso volta com 502 (bem rápido, não é timeout) até o container terminar de subir.
+    // Login/registro costumam ser a primeira ação do usuário no dia, então são os que mais
+    // sofrem com isso — algumas tentativas curtas aqui evitam que o motorista precise clicar de
+    // novo manualmente enquanto a Api acorda.
+    private async Task<HttpResponseMessage> PostAsJsonWithColdStartRetryAsync<T>(string uri, T body)
+    {
+        HttpResponseMessage? response = null;
+        for (var tentativa = 0; tentativa < 4; tentativa++)
+        {
+            if (tentativa > 0)
+                await Task.Delay(TimeSpan.FromSeconds(3));
+
+            response = await http.PostAsJsonAsync(uri, body);
+            var status = (int)response.StatusCode;
+            if (status is not (502 or 503 or 504))
+                return response;
+        }
+
+        return response!;
     }
 
     public async Task<IReadOnlyList<VehicleDto>> GetVehiclesAsync()

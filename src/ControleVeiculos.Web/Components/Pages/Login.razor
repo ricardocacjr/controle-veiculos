@@ -83,9 +83,13 @@
             AuthState.SignIn(result.Token, _model.Login);
             Nav.NavigateTo("/usos");
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _error = "Usuário ou senha inválidos.";
+        }
         catch (HttpRequestException)
         {
-            _error = "E-mail ou senha inválidos.";
+            _error = "O servidor está iniciando (isso acontece após um tempo sem uso) — aguarde alguns segundos e tente entrar de novo.";
         }
         finally
         {
