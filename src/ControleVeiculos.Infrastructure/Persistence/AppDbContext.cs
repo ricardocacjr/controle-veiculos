@@ -17,6 +17,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
     public DbSet<VoiceNote> VoiceNotes => Set<VoiceNote>();
     public DbSet<FuelEntry> FuelEntries => Set<FuelEntry>();
+    public DbSet<Empresa> Empresas => Set<Empresa>();
+    public DbSet<MotivoUso> MotivosUso => Set<MotivoUso>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -37,6 +37,8 @@ public static class DependencyInjection
         services.AddScoped<IVehicleRepository, VehicleRepository>();
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IUsageRecordRepository, UsageRecordRepository>();
+        services.AddScoped<IEmpresaRepository, EmpresaRepository>();
+        services.AddScoped<IMotivoUsoRepository, MotivoUsoRepository>();
         services.AddScoped<IVoiceTranscriptionService, GoogleSpeechTranscriptionService>();
         services.AddScoped<IOdometerOcrService, GoogleVisionOdometerOcrService>();
         services.AddScoped<IFuelReceiptOcrService, GoogleVisionFuelReceiptOcrService>();

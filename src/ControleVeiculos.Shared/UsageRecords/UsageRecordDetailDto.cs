@@ -8,6 +8,7 @@ public record UsageRecordDetailDto(
     string VeiculoPlaca,
     Guid MotoristaId,
     string MotoristaNome,
+    string? EmpresaNome,
     string Finalidade,
     string? Origem,
     string? Destino,

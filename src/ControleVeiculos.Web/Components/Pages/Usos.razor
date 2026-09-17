@@ -30,6 +30,7 @@ else
             <tr>
                 <th>Veículo</th>
                 <th>Motorista</th>
+                <th>Empresa</th>
                 <th>Finalidade</th>
                 <th>Odômetro (ini/fim)</th>
                 <th>Início</th>
@@ -43,6 +44,7 @@ else
                 <tr style="cursor:pointer" @onclick="() => NavigateToUso(uso.Id)">
                     <td>@uso.VeiculoPlaca</td>
                     <td>@uso.MotoristaNome</td>
+                    <td>@(uso.EmpresaNome ?? "-")</td>
                     <td>@uso.Finalidade</td>
                     <td>@uso.OdometroInicial / @(uso.OdometroFinal?.ToString() ?? "-")</td>
                     <td>@uso.IniciadoEm.LocalDateTime</td>

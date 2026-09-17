@@ -11,6 +11,7 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
         await Set
             .Include(u => u.Veiculo)
             .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
             .Include(u => u.Fotos)
             .Include(u => u.NotasDeVoz)
             .Include(u => u.Abastecimentos)
@@ -25,6 +26,7 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
         await Set.AsNoTracking()
             .Include(u => u.Veiculo)
             .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
             .OrderByDescending(u => u.IniciadoEm)
             .ToListAsync(ct);
 
@@ -32,6 +34,7 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
         await Set.AsNoTracking()
             .Include(u => u.Veiculo)
             .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
             .Where(u => u.MotoristaId == motoristaId)
             .OrderByDescending(u => u.IniciadoEm)
             .ToListAsync(ct);
@@ -40,6 +43,7 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
         await Set.AsNoTracking()
             .Include(u => u.Veiculo)
             .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
             .Where(u => u.VeiculoId == veiculoId)
             .OrderByDescending(u => u.IniciadoEm)
             .ToListAsync(ct);
@@ -48,6 +52,7 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
         await Set
             .Include(u => u.Veiculo)
             .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
             .FirstOrDefaultAsync(u => u.MotoristaId == motoristaId && u.Status == UsageRecordStatus.EmAndamento, ct);
 
     public async Task AddPhotoAsync(VehiclePhoto photo, CancellationToken ct = default) =>

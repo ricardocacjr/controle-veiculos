@@ -6,5 +6,6 @@ public record StartUsageRequest(
     string? Origem,
     string? Destino,
     int OdometroInicial,
+    Guid? EmpresaId = null,
     double? Latitude = null,
     double? Longitude = null);

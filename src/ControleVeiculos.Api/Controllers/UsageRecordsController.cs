@@ -20,6 +20,8 @@ public class UsageRecordsController(
     IOdometerOcrService odometerOcrService,
     IFuelReceiptOcrService fuelReceiptOcrService,
     IGeocodingService geocodingService,
+    IEmpresaRepository empresaRepository,
+    IMotivoUsoRepository motivoUsoRepository,
     IConfiguration configuration,
     IWebHostEnvironment environment) : ControllerBase
 {
@@ -75,16 +77,28 @@ public class UsageRecordsController(
         if (vehicle.Status != VehicleStatus.Disponivel)
             return BadRequest("Veículo não está disponível.");
 
+        Empresa? empresa = null;
+        if (request.EmpresaId is { } empresaId)
+        {
+            empresa = await empresaRepository.GetByIdAsync(empresaId, ct);
+            if (empresa is null)
+                return BadRequest("Empresa não encontrada.");
+        }
+
         // Origem já resolvida na tela (leitura do painel) chega pronta; se só vierem as
         // coordenadas (cliente sem essa etapa), resolve aqui como fallback.
         var origem = request.Origem;
         if (string.IsNullOrWhiteSpace(origem) && request.Latitude is { } lat && request.Longitude is { } lon)
             origem = await geocodingService.ReverseGeocodeAsync(lat, lon, ct);
 
+        // Catálogo de finalidades cresce sozinho: se "request.Finalidade" for inédita, entra aqui.
+        await motivoUsoRepository.EnsureExistsAsync(request.Finalidade, ct);
+
         var usage = new UsageRecord
         {
             VeiculoId = vehicle.Id,
             MotoristaId = driver.Id,
+            EmpresaId = empresa?.Id,
             Finalidade = request.Finalidade,
             Origem = origem,
             Destino = request.Destino,
@@ -101,6 +115,7 @@ public class UsageRecordsController(
 
         usage.Veiculo = vehicle;
         usage.Motorista = driver;
+        usage.Empresa = empresa;
         return CreatedAtAction(nameof(GetById), new { id = usage.Id }, ToDto(usage));
     }
 
@@ -307,12 +322,12 @@ public class UsageRecordsController(
     }
 
     private static UsageRecordDto ToDto(UsageRecord u) => new(
-        u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?",
+        u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?", u.Empresa?.Nome,
         u.Finalidade, u.Origem, u.Destino, u.OdometroInicial, u.OdometroFinal,
         u.IniciadoEm, u.FinalizadoEm, u.Status);
 
     private static UsageRecordDetailDto ToDetailDto(UsageRecord u) => new(
-        u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?",
+        u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?", u.Empresa?.Nome,
         u.Finalidade, u.Origem, u.Destino, u.OdometroInicial, u.OdometroFinal,
         u.IniciadoEm, u.FinalizadoEm, u.Status,
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),

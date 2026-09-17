@@ -23,6 +23,10 @@ else
 
     <p>
         <strong>Motorista:</strong> @_uso.MotoristaNome<br />
+        @if (_uso.EmpresaNome is not null)
+        {
+            <text><strong>Empresa:</strong> @_uso.EmpresaNome<br /></text>
+        }
         <strong>Origem/Destino:</strong> @(_uso.Origem ?? "-") → @(_uso.Destino ?? "-")<br />
         <strong>Odômetro:</strong> @_uso.OdometroInicial km → @(_uso.OdometroFinal?.ToString() ?? "em andamento") km<br />
         <strong>Início:</strong> @_uso.IniciadoEm.LocalDateTime<br />

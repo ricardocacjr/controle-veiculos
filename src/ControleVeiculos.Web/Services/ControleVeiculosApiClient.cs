@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ControleVeiculos.Shared.Auth;
 using ControleVeiculos.Shared.Drivers;
+using ControleVeiculos.Shared.Empresas;
 using ControleVeiculos.Shared.UsageRecords;
 using ControleVeiculos.Shared.Vehicles;
 
@@ -78,6 +79,47 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         using var request = AuthorizedRequest(HttpMethod.Delete, $"api/drivers/{id}");
         var response = await http.SendAsync(request);
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<EmpresaDto>> GetEmpresasAsync()
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, "api/empresas");
+        var response = await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<EmpresaDto>>() ?? [];
+    }
+
+    public async Task<EmpresaDto?> CreateEmpresaAsync(CreateEmpresaRequest empresa)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Post, "api/empresas");
+        request.Content = JsonContent.Create(empresa);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<EmpresaDto>();
+    }
+
+    public async Task<EmpresaDto?> UpdateEmpresaAsync(Guid id, UpdateEmpresaRequest empresa)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/empresas/{id}");
+        request.Content = JsonContent.Create(empresa);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<EmpresaDto>();
+    }
+
+    public async Task DeleteEmpresaAsync(Guid id)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Delete, $"api/empresas/{id}");
+        var response = await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IReadOnlyList<MotivoUsoDto>> GetMotivosUsoAsync()
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, "api/motivosuso");
+        var response = await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<MotivoUsoDto>>() ?? [];
     }
 
     public async Task<IReadOnlyList<UsageRecordDto>> GetUsageRecordsAsync()

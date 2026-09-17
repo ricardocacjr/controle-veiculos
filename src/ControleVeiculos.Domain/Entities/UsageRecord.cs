@@ -14,6 +14,9 @@ public class UsageRecord : BaseEntity, ITenantScoped
     public required Guid MotoristaId { get; set; }
     public Driver? Motorista { get; set; }
 
+    public Guid? EmpresaId { get; set; }
+    public Empresa? Empresa { get; set; }
+
     public required string Finalidade { get; set; }
     public string? Origem { get; set; }
     public string? Destino { get; set; }

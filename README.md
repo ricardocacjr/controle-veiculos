@@ -27,6 +27,15 @@ Entidades principais (`Vehicle`, `Driver`, `UsageRecord`, ...) já têm `TenantI
 não travar uma futura oferta multi-tenant, sem implementar isso agora — mesmo padrão do
 SuporteRemoto.
 
+Duas entidades de apoio ao uso, com naturezas bem diferentes:
+- **`Empresa`** (Voglio, OAK, Uso Pessoal, ...): cadastro gerenciado à parte, igual veículo —
+  só Admin/Gestor cria/edita/remove (`/empresas` no painel, `EmpresasController` na Api).
+- **`MotivoUso`** (finalidade do trajeto): catálogo que **cresce sozinho** — toda vez que um uso é
+  iniciado com uma finalidade inédita, ela entra automaticamente no catálogo
+  (`IMotivoUsoRepository.EnsureExistsAsync`, chamado em `UsageRecordsController.Start`) e passa a
+  aparecer como sugestão (`<datalist>`) da próxima vez. Não tem tela de cadastro nem tela de
+  edição — só decorre do uso normal do app.
+
 ### Fluxo de uso
 
 1. Motorista abre o app (mobile ou a tela `/motorista/uso` do painel web), entra com login curto
@@ -34,7 +43,8 @@ SuporteRemoto.
    (`POST /api/usagerecords/ler-painel`) — lê o odômetro por OCR e, se o navegador/app compartilhar
    a localização, resolve o endereço por geocodificação reversa, pré-preenchendo odômetro inicial
    e origem (ainda editáveis).
-2. Confirma os campos (finalidade, veículo, etc.) e inicia o uso (`POST /api/usagerecords/iniciar`)
+2. Confirma os campos — veículo, empresa (opcional, lista fixa), finalidade (digita livre, com
+   sugestões do catálogo que cresce sozinho) — e inicia o uso (`POST /api/usagerecords/iniciar`)
    — o veículo passa a `EmUso`.
 3. Durante o uso: fotos (odômetro — com leitura automática sugerida por OCR, avarias), notas de
    voz (transcritas automaticamente) e abastecimentos podem ser anexados ao registro em andamento.

@@ -1,0 +1,171 @@
+@page "/empresas"
+@using ControleVeiculos.Shared.Empresas
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Empresas</PageTitle>
+
+<h1>Empresas</h1>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>Você precisa <a href="/login">entrar</a> para ver as empresas.</p>
+}
+else
+{
+    <EditForm Model="_form" OnValidSubmit="HandleSubmitAsync">
+        <div class="d-flex flex-wrap gap-2 mb-3 align-items-end">
+            <div style="width:220px">
+                <label class="form-label small mb-0">Nome</label>
+                <InputText class="form-control" @bind-Value="_form.Nome" />
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@_loading">@(_editingId is null ? "Adicionar" : "Salvar")</button>
+                @if (_editingId is not null)
+                {
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">Cancelar</button>
+                }
+            </div>
+        </div>
+    </EditForm>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    @if (_empresas is null)
+    {
+        <p>Carregando...</p>
+    }
+    else if (_empresas.Count == 0)
+    {
+        <p>Nenhuma empresa cadastrada ainda.</p>
+    }
+    else
+    {
+        <table class="table" style="max-width:500px">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var empresa in _empresas)
+                {
+                    <tr>
+                        <td>@empresa.Nome</td>
+                        <td class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(empresa)">Editar</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(empresa)">Remover</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<EmpresaDto>? _empresas;
+    private string? _error;
+    private bool _loading;
+    private Guid? _editingId;
+    private readonly EmpresaFormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadEmpresasAsync();
+    }
+
+    private async Task LoadEmpresasAsync()
+    {
+        try
+        {
+            _empresas = (await Api.GetEmpresasAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível carregar as empresas.";
+            _empresas = [];
+        }
+    }
+
+    private void StartEdit(EmpresaDto empresa)
+    {
+        _editingId = empresa.Id;
+        _form.Nome = empresa.Nome;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        ResetForm();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            if (_editingId is { } id)
+            {
+                await Api.UpdateEmpresaAsync(id, new UpdateEmpresaRequest(_form.Nome));
+                _editingId = null;
+            }
+            else
+            {
+                await Api.CreateEmpresaAsync(new CreateEmpresaRequest(_form.Nome));
+            }
+
+            ResetForm();
+            await LoadEmpresasAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Não foi possível salvar a empresa: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleDeleteAsync(EmpresaDto empresa)
+    {
+        var confirmado = await JS.InvokeAsync<bool>("confirm", $"Remover a empresa {empresa.Nome}?");
+        if (!confirmado)
+            return;
+
+        try
+        {
+            await Api.DeleteEmpresaAsync(empresa.Id);
+            await LoadEmpresasAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Não foi possível remover a empresa.";
+        }
+    }
+
+    private void ResetForm()
+    {
+        _form.Nome = string.Empty;
+    }
+
+    private class EmpresaFormModel
+    {
+        public string Nome { get; set; } = string.Empty;
+    }
+}

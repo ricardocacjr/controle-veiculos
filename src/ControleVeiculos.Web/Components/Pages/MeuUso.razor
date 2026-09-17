@@ -1,5 +1,6 @@
 @page "/motorista/uso"
 @using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.Empresas
 @using ControleVeiculos.Shared.UsageRecords
 @using ControleVeiculos.Shared.Vehicles
 @inject ControleVeiculosApiClient Api
@@ -48,8 +49,25 @@ else if (_usoAtual is null)
             </InputSelect>
         </div>
         <div class="mb-2" style="max-width:400px">
+            <label class="form-label small mb-0">Empresa</label>
+            <InputSelect class="form-select" @bind-Value="_startForm.EmpresaId">
+                <option value="">(nenhuma)</option>
+                @foreach (var emp in _empresas)
+                {
+                    <option value="@emp.Id">@emp.Nome</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-2" style="max-width:400px">
             <label class="form-label small mb-0">Finalidade</label>
-            <InputText class="form-control" @bind-Value="_startForm.Finalidade" />
+            <InputText class="form-control" @bind-Value="_startForm.Finalidade" list="motivos-datalist" autocomplete="off" />
+            <datalist id="motivos-datalist">
+                @foreach (var motivo in _motivos)
+                {
+                    <option value="@motivo.Nome" />
+                }
+            </datalist>
+            <div class="form-text">Digite um motivo novo se não achar na lista — ele fica salvo pra próxima vez.</div>
         </div>
         <div class="mb-2" style="max-width:400px">
             <label class="form-label small mb-0">Origem</label>
@@ -81,6 +99,10 @@ else
     <div class="card mb-3" style="max-width:500px">
         <div class="card-body">
             <h5 class="card-title">@_usoAtual.VeiculoPlaca — @_usoAtual.Finalidade</h5>
+            @if (_usoAtual.EmpresaNome is not null)
+            {
+                <p class="card-text mb-1"><strong>Empresa:</strong> @_usoAtual.EmpresaNome</p>
+            }
             <p class="card-text mb-1">@(_usoAtual.Origem ?? "-") → @(_usoAtual.Destino ?? "-")</p>
             <p class="card-text mb-1">Odômetro inicial: @_usoAtual.OdometroInicial km</p>
             <p class="card-text text-muted">Iniciado em @_usoAtual.IniciadoEm.LocalDateTime</p>
@@ -180,6 +202,8 @@ else
     private UsageRecordDto? _usoAtual;
     private UsageRecordDetailDto? _detalhe;
     private List<VehicleDto> _veiculosDisponiveis = [];
+    private List<EmpresaDto> _empresas = [];
+    private List<MotivoUsoDto> _motivos = [];
     private readonly StartForm _startForm = new();
     private readonly FuelForm _fuelForm = new();
     private readonly FinishForm _finishForm = new();
@@ -207,6 +231,8 @@ else
                 _veiculosDisponiveis = (await Api.GetVehiclesAsync())
                     .Where(v => v.Status == VehicleStatus.Disponivel)
                     .ToList();
+                _empresas = (await Api.GetEmpresasAsync()).ToList();
+                _motivos = (await Api.GetMotivosUsoAsync()).ToList();
             }
             else
             {
@@ -235,8 +261,10 @@ else
                 return;
             }
 
+            Guid? empresaId = Guid.TryParse(_startForm.EmpresaId, out var parsedEmpresaId) ? parsedEmpresaId : null;
+
             await Api.IniciarUsoAsync(new StartUsageRequest(
-                veiculoId, _startForm.Finalidade, _startForm.Origem, _startForm.Destino, _startForm.OdometroInicial));
+                veiculoId, _startForm.Finalidade, _startForm.Origem, _startForm.Destino, _startForm.OdometroInicial, empresaId));
             await ReloadAsync();
         }
         catch (HttpRequestException ex)
@@ -442,6 +470,7 @@ else
     private class StartForm
     {
         public string VeiculoId { get; set; } = string.Empty;
+        public string EmpresaId { get; set; } = string.Empty;
         public string Finalidade { get; set; } = string.Empty;
         public string? Origem { get; set; }
         public string? Destino { get; set; }
