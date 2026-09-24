@@ -91,15 +91,20 @@ public class UsageRecordsController(
         if (string.IsNullOrWhiteSpace(origem) && request.Latitude is { } lat && request.Longitude is { } lon)
             origem = await geocodingService.ReverseGeocodeAsync(lat, lon, ct);
 
-        // Catálogo de finalidades cresce sozinho: se "request.Finalidade" for inédita, entra aqui.
-        await motivoUsoRepository.EnsureExistsAsync(request.Finalidade, ct);
+        // Sem o Trim, "Busca de material " (espaço digitado no celular) viraria um motivo duplicado.
+        var finalidade = request.Finalidade.Trim();
+        if (finalidade.Length == 0)
+            return BadRequest("Informe a finalidade.");
+
+        // Catálogo de finalidades cresce sozinho: se a finalidade for inédita, entra aqui.
+        await motivoUsoRepository.EnsureExistsAsync(finalidade, ct);
 
         var usage = new UsageRecord
         {
             VeiculoId = vehicle.Id,
             MotoristaId = driver.Id,
             EmpresaId = empresa?.Id,
-            Finalidade = request.Finalidade,
+            Finalidade = finalidade,
             Origem = origem,
             Destino = request.Destino,
             OdometroInicial = request.OdometroInicial,
