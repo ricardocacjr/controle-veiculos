@@ -80,6 +80,22 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/", () => Results.Ok("ControleVeiculos.Api"));
+
+// Alvo do ping periódico (MikroTik) que mantém acordados o Render (dorme após ~15 min sem
+// requisição) e o MySQL free do Aiven (desliga por inatividade de banco — um GET que não toca no
+// banco não adianta, por isso o SELECT 1 aqui).
+app.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
+{
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("SELECT 1", ct);
+        return Results.Ok("ok");
+    }
+    catch (Exception)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapControllers();
 
 await InitializeDatabaseAsync(app);
