@@ -98,7 +98,9 @@ app.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 });
 app.MapControllers();
 
-await InitializeDatabaseAsync(app);
+// Permite gerar migrations (dotnet ef) sem um banco acessível — o host sobe mas não migra/semeia.
+if (Environment.GetEnvironmentVariable("SKIP_DB_INIT") != "1")
+    await InitializeDatabaseAsync(app);
 
 app.Run();
 

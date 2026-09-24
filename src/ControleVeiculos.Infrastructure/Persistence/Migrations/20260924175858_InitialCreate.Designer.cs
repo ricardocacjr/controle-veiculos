@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ControleVeiculos.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260914125547_InitialCreate")]
+    [Migration("20260924175858_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -23,6 +23,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "8.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
+            MySqlModelBuilderExtensions.UseGuidCollation(modelBuilder, "utf8mb4_bin");
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
             modelBuilder.Entity("ControleVeiculos.Domain.Entities.Driver", b =>
@@ -62,6 +63,34 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                     b.ToTable("Drivers");
                 });
 
+            modelBuilder.Entity("ControleVeiculos.Domain.Entities.Empresa", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nome")
+                        .IsUnique();
+
+                    b.ToTable("Empresas");
+                });
+
             modelBuilder.Entity("ControleVeiculos.Domain.Entities.FuelEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -87,6 +116,10 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UsoId")
                         .HasColumnType("char(36)");
 
+                    b.Property<decimal?>("ValorPorLitro")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
                     b.Property<decimal>("ValorTotal")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -96,6 +129,34 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                     b.HasIndex("UsoId");
 
                     b.ToTable("FuelEntries");
+                });
+
+            modelBuilder.Entity("ControleVeiculos.Domain.Entities.MotivoUso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nome")
+                        .IsUnique();
+
+                    b.ToTable("MotivosUso");
                 });
 
             modelBuilder.Entity("ControleVeiculos.Domain.Entities.Tenant", b =>
@@ -131,6 +192,9 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                     b.Property<string>("Destino")
                         .HasColumnType("longtext");
 
+                    b.Property<Guid?>("EmpresaId")
+                        .HasColumnType("char(36)");
+
                     b.Property<string>("Finalidade")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -140,6 +204,12 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("IniciadoEm")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<double?>("LatitudeInicial")
+                        .HasColumnType("double");
+
+                    b.Property<double?>("LongitudeInicial")
+                        .HasColumnType("double");
 
                     b.Property<Guid>("MotoristaId")
                         .HasColumnType("char(36)");
@@ -166,6 +236,8 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmpresaId");
 
                     b.HasIndex("MotoristaId");
 
@@ -237,6 +309,9 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Observacao")
                         .HasColumnType("longtext");
+
+                    b.Property<int?>("OdometroLido")
+                        .HasColumnType("int");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("char(36)");
@@ -507,6 +582,10 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ControleVeiculos.Domain.Entities.UsageRecord", b =>
                 {
+                    b.HasOne("ControleVeiculos.Domain.Entities.Empresa", "Empresa")
+                        .WithMany()
+                        .HasForeignKey("EmpresaId");
+
                     b.HasOne("ControleVeiculos.Domain.Entities.Driver", "Motorista")
                         .WithMany("Usos")
                         .HasForeignKey("MotoristaId")
@@ -518,6 +597,8 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                         .HasForeignKey("VeiculoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Empresa");
 
                     b.Navigation("Motorista");
 

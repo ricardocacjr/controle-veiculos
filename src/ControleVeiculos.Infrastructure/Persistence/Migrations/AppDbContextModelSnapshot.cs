@@ -20,6 +20,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "8.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
+            MySqlModelBuilderExtensions.UseGuidCollation(modelBuilder, "utf8mb4_bin");
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
             modelBuilder.Entity("ControleVeiculos.Domain.Entities.Driver", b =>

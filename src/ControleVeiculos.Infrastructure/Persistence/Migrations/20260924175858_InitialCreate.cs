@@ -19,7 +19,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "AspNetRoles",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     Name = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     NormalizedName = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
@@ -37,10 +37,10 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "AspNetUsers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     NomeCompleto = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
                     UserName = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     NormalizedUserName = table.Column<string>(type: "varchar(256)", maxLength: 256, nullable: true)
@@ -74,8 +74,8 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "Drivers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
                     Nome = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Cnh = table.Column<string>(type: "longtext", nullable: false)
@@ -83,7 +83,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                     CnhValidade = table.Column<DateOnly>(type: "date", nullable: true),
                     Telefone = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
+                    UserId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true)
                 },
@@ -94,10 +94,44 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
+                name: "Empresas",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    Nome = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Empresas", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "MotivosUso",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    Nome = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MotivosUso", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
                 name: "Tenants",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     Nome = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
@@ -113,8 +147,8 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "Vehicles",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
                     Placa = table.Column<string>(type: "varchar(10)", maxLength: 10, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Marca = table.Column<string>(type: "longtext", nullable: false)
@@ -141,7 +175,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    RoleId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    RoleId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     ClaimType = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ClaimValue = table.Column<string>(type: "longtext", nullable: true)
@@ -165,7 +199,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     ClaimType = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ClaimValue = table.Column<string>(type: "longtext", nullable: true)
@@ -193,7 +227,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ProviderDisplayName = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci")
+                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin")
                 },
                 constraints: table =>
                 {
@@ -211,8 +245,8 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "AspNetUserRoles",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    RoleId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci")
+                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    RoleId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin")
                 },
                 constraints: table =>
                 {
@@ -236,7 +270,7 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "AspNetUserTokens",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     LoginProvider = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Name = table.Column<string>(type: "varchar(255)", nullable: false)
@@ -260,16 +294,19 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "UsageRecords",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
-                    VeiculoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    MotoristaId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    VeiculoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    MotoristaId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    EmpresaId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
                     Finalidade = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Origem = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Destino = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    LatitudeInicial = table.Column<double>(type: "double", nullable: true),
+                    LongitudeInicial = table.Column<double>(type: "double", nullable: true),
                     OdometroInicial = table.Column<int>(type: "int", nullable: false),
                     OdometroFinal = table.Column<int>(type: "int", nullable: true),
                     IniciadoEm = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
@@ -288,6 +325,11 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
+                        name: "FK_UsageRecords_Empresas_EmpresaId",
+                        column: x => x.EmpresaId,
+                        principalTable: "Empresas",
+                        principalColumn: "Id");
+                    table.ForeignKey(
                         name: "FK_UsageRecords_Vehicles_VeiculoId",
                         column: x => x.VeiculoId,
                         principalTable: "Vehicles",
@@ -300,12 +342,13 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "FuelEntries",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
-                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     Litros = table.Column<decimal>(type: "decimal(10,2)", precision: 10, scale: 2, nullable: false),
                     ValorTotal = table.Column<decimal>(type: "decimal(10,2)", precision: 10, scale: 2, nullable: false),
                     Odometro = table.Column<int>(type: "int", nullable: false),
+                    ValorPorLitro = table.Column<decimal>(type: "decimal(10,3)", precision: 10, scale: 3, nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true)
                 },
@@ -325,14 +368,15 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "VehiclePhotos",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
-                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     Tipo = table.Column<int>(type: "int", nullable: false),
                     ArquivoUrl = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Observacao = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    OdometroLido = table.Column<int>(type: "int", nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: true)
                 },
@@ -352,9 +396,9 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "VoiceNotes",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
-                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
+                    TenantId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "utf8mb4_bin"),
+                    UsoId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "utf8mb4_bin"),
                     ArquivoUrl = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TranscricaoTexto = table.Column<string>(type: "longtext", nullable: true)
@@ -413,9 +457,26 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Empresas_Nome",
+                table: "Empresas",
+                column: "Nome",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FuelEntries_UsoId",
                 table: "FuelEntries",
                 column: "UsoId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MotivosUso_Nome",
+                table: "MotivosUso",
+                column: "Nome",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UsageRecords_EmpresaId",
+                table: "UsageRecords",
+                column: "EmpresaId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UsageRecords_MotoristaId",
@@ -466,6 +527,9 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
                 name: "FuelEntries");
 
             migrationBuilder.DropTable(
+                name: "MotivosUso");
+
+            migrationBuilder.DropTable(
                 name: "Tenants");
 
             migrationBuilder.DropTable(
@@ -485,6 +549,9 @@ namespace ControleVeiculos.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "Drivers");
+
+            migrationBuilder.DropTable(
+                name: "Empresas");
 
             migrationBuilder.DropTable(
                 name: "Vehicles");

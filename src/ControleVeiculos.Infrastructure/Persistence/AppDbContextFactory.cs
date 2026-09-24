@@ -20,7 +20,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     public AppDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-        optionsBuilder.UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString));
+        optionsBuilder.UseMySql(ConnectionString, new MySqlServerVersion(new Version(8, 0, 35)));
 
         return new AppDbContext(optionsBuilder.Options);
     }
