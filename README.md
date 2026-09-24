@@ -59,18 +59,32 @@ Em todos os casos de leitura por foto (odômetro, painel, comprovante), o valor 
 **sugestão pré-preenchida, nunca aplicada sem confirmação** — o motorista/gestor ainda revisa e
 pode corrigir antes de salvar.
 
-## Ambiente de produção (Render + Aiven)
+## Ambiente de produção (Render + TiDB Cloud)
 
 A Api e o painel Web estão publicados e acessíveis pela internet:
-- Api: https://controle-veiculos-api-v3l0.onrender.com
+- Api: https://controle-veiculos-api-v3l0.onrender.com (`/health` consulta o banco)
 - Web: https://controle-veiculos-web-hqyg.onrender.com
 
 Deploy via [Render](https://render.com) (Web Services em Docker, build a partir de
 [`src/ControleVeiculos.Api/Dockerfile`](src/ControleVeiculos.Api/Dockerfile) e
 [`src/ControleVeiculos.Web/Dockerfile`](src/ControleVeiculos.Web/Dockerfile)) + banco
-[Aiven](https://aiven.io) MySQL gerenciado — mesmo padrão do SuporteRemoto, reaproveitando o
-mesmo servidor MySQL free (Aiven só libera um serviço MySQL grátis por organização) com um banco
-`controle_veiculos_db` separado nele. Segredos (connection string, `Jwt:Key`) ficam só nas
+[TiDB Cloud](https://tidbcloud.com) Starter (grátis, compatível com MySQL, região Oregon), banco
+`controle_veiculos`. Começou no Aiven MySQL free (compartilhado com o SuporteRemoto), mas o Aiven
+**desliga** serviços grátis inativos e precisa ser religado à mão — a Api ficava em loop de queda.
+O TiDB Starter é serverless (sem VM pra desligar) e não tem pausa manual; o plano grátis tem 5 GiB
+e 50M Request Units por mês.
+
+**Compatibilidade TiDB**: o Pomelo cria colunas `Guid` com collation `ascii_general_ci`, que o TiDB
+recusa ("Unsupported collation when new collation is enabled"). Por isso o modelo define
+`UseGuidCollation("utf8mb4_bin")` e as migrations foram regeneradas numa só (`InitialCreate`). A
+versão do servidor é fixa no código (sem `AutoDetect`, que exigiria banco acessível na
+inicialização), e `SKIP_DB_INIT=1` deixa gerar migrations sem banco:
+`SKIP_DB_INIT=1 dotnet ef migrations add <Nome> --project src/ControleVeiculos.Infrastructure --startup-project src/ControleVeiculos.Api --output-dir Persistence/Migrations`.
+
+**Mantendo acordado**: o Render grátis dorme após ~15 min sem requisição. Um MikroTik (24h ligado)
+chama `/health` da Api e a página do Web a cada 10 min via `/system scheduler` + `/tool fetch`.
+
+Segredos (connection string, `Jwt:Key`) ficam só nas
 variáveis de ambiente do Render; a credencial do Google Cloud (Speech-to-Text + Vision) é um
 "Secret File" do Render, montado em `/etc/secrets/google-credentials.json` — nada disso é
 versionado.
@@ -86,8 +100,8 @@ desenvolvimento: veículo (`XYZ9A88`), empresas (Voglio/OAK/Uso Pessoal) e os mo
 curto (DANI/ERICK/JONATHAN/JOSLEY/RICARDO/GIL, senha `senha123`) foram recriados direto contra a
 Api de produção.
 
-Planos free do Render dormem depois de um tempo sem uso — a primeira requisição depois disso pode
-demorar ~50s pra "acordar" o serviço.
+Sem o ping, a primeira requisição depois de o Render dormir volta 502 por alguns segundos; o login
+do painel tenta de novo sozinho e, se ainda falhar, avisa que o servidor está iniciando.
 
 ## Pré-requisitos
 
