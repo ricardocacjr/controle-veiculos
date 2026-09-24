@@ -7,65 +7,61 @@
 
 <PageTitle>Empresas</PageTitle>
 
-<h1>Empresas</h1>
+<h1 class="page-title">Empresas</h1>
+<p class="page-subtitle">Para quem cada uso do veículo é feito.</p>
 
-@if (!AuthState.IsAuthenticated)
+@if (AuthState.IsAuthenticated)
 {
-    <p>Você precisa <a href="/login">entrar</a> para ver as empresas.</p>
-}
-else
-{
-    <EditForm Model="_form" OnValidSubmit="HandleSubmitAsync">
-        <div class="d-flex flex-wrap gap-2 mb-3 align-items-end">
-            <div style="width:220px">
-                <label class="form-label small mb-0">Nome</label>
+    <div class="section-title">@(_editingId is null ? "Nova empresa" : "Editar empresa")</div>
+    <div class="card-app">
+        <EditForm Model="_form" OnValidSubmit="HandleSubmitAsync">
+            <div class="field">
+                <label>Nome</label>
                 <InputText class="form-control" @bind-Value="_form.Nome" />
             </div>
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary" disabled="@_loading">@(_editingId is null ? "Adicionar" : "Salvar")</button>
+                <button type="submit" class="btn btn-primary btn-app" disabled="@_loading">
+                    <Icon Name="@(_editingId is null ? "plus" : "check")" Size="20" /><span>@(_editingId is null ? "Adicionar empresa" : "Salvar alterações")</span>
+                </button>
                 @if (_editingId is not null)
                 {
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">Cancelar</button>
+                    <button type="button" class="btn btn-soft btn-app" style="max-width:140px" @onclick="CancelEdit">Cancelar</button>
                 }
             </div>
-        </div>
-    </EditForm>
+        </EditForm>
+    </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger">@_error</div>
-    }
+    <div class="mt-3"><Mensagens Erro="@_error" /></div>
 
+    <div class="section-title">Cadastradas</div>
     @if (_empresas is null)
     {
-        <p>Carregando...</p>
+        <div class="loading-block"><span class="spinner"></span> Carregando...</div>
     }
     else if (_empresas.Count == 0)
     {
-        <p>Nenhuma empresa cadastrada ainda.</p>
+        <div class="empty-state">
+            <div class="empty-icon"><Icon Name="building" Size="26" /></div>
+            <div>Nenhuma empresa cadastrada ainda.</div>
+        </div>
     }
     else
     {
-        <table class="table" style="max-width:500px">
-            <thead>
-                <tr>
-                    <th>Nome</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var empresa in _empresas)
-                {
-                    <tr>
-                        <td>@empresa.Nome</td>
-                        <td class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(empresa)">Editar</button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(empresa)">Remover</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="list-card">
+            @foreach (var empresa in _empresas)
+            {
+                <div class="list-item">
+                    <span class="avatar tone-violet"><Icon Name="building" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@empresa.Nome</span>
+                    </span>
+                    <span class="list-item-actions">
+                        <button class="btn-icon" title="Editar" @onclick="() => StartEdit(empresa)"><Icon Name="pencil" Size="18" /></button>
+                        <button class="btn-icon danger" title="Remover" @onclick="() => HandleDeleteAsync(empresa)"><Icon Name="trash" Size="18" /></button>
+                    </span>
+                </div>
+            }
+        </div>
     }
 }
 

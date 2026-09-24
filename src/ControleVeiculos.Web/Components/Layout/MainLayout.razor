@@ -1,23 +1,56 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthState AuthState
+@inject NavigationManager Nav
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+@if (!AuthState.IsAuthenticated)
+{
+    <div class="auth-screen">
+        @Body
     </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+}
+else
+{
+    <header class="app-topbar">
+        <a class="app-brand" href="">
+            <span class="app-brand-logo"><Icon Name="car" Size="20" /></span>
+            <span>Controle de Veículos</span>
+        </a>
+        <div class="app-user">
+            <span class="app-user-name">@AuthState.Email</span>
+            <button class="icon-btn" title="Sair" @onclick="SairAsync"><Icon Name="logout" Size="20" /></button>
         </div>
+    </header>
 
-        <article class="content px-4">
-            @Body
-        </article>
+    <nav class="app-sidebar">
+        <NavMenu Variant="side" />
+    </nav>
+
+    <main class="app-main">
+        @Body
     </main>
-</div>
+
+    <nav class="app-tabbar">
+        <NavMenu Variant="tab" />
+    </nav>
+}
 
 <div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
+    Ocorreu um erro inesperado.
+    <a href="" class="reload">Recarregar</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    protected override void OnInitialized() => AuthState.Changed += OnAuthChanged;
+
+    private void OnAuthChanged() => InvokeAsync(StateHasChanged);
+
+    private void SairAsync()
+    {
+        AuthState.SignOut();
+        Nav.NavigateTo("/login");
+    }
+
+    public void Dispose() => AuthState.Changed -= OnAuthChanged;
+}

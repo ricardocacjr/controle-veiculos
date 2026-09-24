@@ -3,64 +3,66 @@
 @inject AuthState AuthState
 @inject NavigationManager Nav
 
-<PageTitle>Usos registrados</PageTitle>
+<PageTitle>@Titulo</PageTitle>
 
-<h1>Usos registrados</h1>
+<h1 class="page-title">@Titulo</h1>
+<p class="page-subtitle">@(_ehMotorista ? "Suas saídas com o veículo." : "Todas as saídas registradas pelos motoristas.")</p>
 
-@if (!AuthState.IsAuthenticated)
+@if (_error is not null)
 {
-    <p>Você precisa <a href="/login">entrar</a> para ver os usos.</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-danger">@_error</div>
+    <Mensagens Erro="@_error" />
 }
 else if (_usos is null)
 {
-    <p>Carregando...</p>
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
 }
 else if (_usos.Count == 0)
 {
-    <p>Nenhum uso registrado ainda. Os motoristas registram o início/fim de cada uso pelo app mobile.</p>
+    <div class="empty-state">
+        <div class="empty-icon"><Icon Name="history" Size="26" /></div>
+        <div>Nenhum uso registrado ainda.</div>
+    </div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Veículo</th>
-                <th>Motorista</th>
-                <th>Empresa</th>
-                <th>Finalidade</th>
-                <th>Odômetro (ini/fim)</th>
-                <th>Início</th>
-                <th>Fim</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var uso in _usos)
-            {
-                <tr style="cursor:pointer" @onclick="() => NavigateToUso(uso.Id)">
-                    <td>@uso.VeiculoPlaca</td>
-                    <td>@uso.MotoristaNome</td>
-                    <td>@(uso.EmpresaNome ?? "-")</td>
-                    <td>@uso.Finalidade</td>
-                    <td>@uso.OdometroInicial / @(uso.OdometroFinal?.ToString() ?? "-")</td>
-                    <td>@uso.IniciadoEm.LocalDateTime</td>
-                    <td>@(uso.FinalizadoEm?.LocalDateTime.ToString() ?? "-")</td>
-                    <td>@uso.Status</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="list-card">
+        @foreach (var uso in _usos)
+        {
+            var status = Rotulos.Uso(uso.Status);
+            <a class="list-item" href="@($"usos/{uso.Id}")">
+                <span class="avatar"><Icon Name="car" Size="20" /></span>
+                <span class="list-item-main">
+                    <span class="list-item-title d-block">@uso.Finalidade</span>
+                    <span class="list-item-sub d-block">@Subtitulo(uso)</span>
+                    <span class="list-item-sub d-block">@Quilometragem(uso)</span>
+                </span>
+                <span class="chip @status.Chip">@status.Texto</span>
+                <Icon Name="chevron-right" Size="18" Class="muted" />
+            </a>
+        }
+    </div>
 }
 
 @code {
     private List<ControleVeiculos.Shared.UsageRecords.UsageRecordDto>? _usos;
     private string? _error;
+    private bool _ehMotorista;
 
-    private void NavigateToUso(Guid id) => Nav.NavigateTo($"/usos/{id}");
+    private string Titulo => _ehMotorista ? "Histórico" : "Usos registrados";
+
+    private string Subtitulo(ControleVeiculos.Shared.UsageRecords.UsageRecordDto uso)
+    {
+        var partes = new List<string> { uso.VeiculoPlaca };
+        if (!_ehMotorista) partes.Add(uso.MotoristaNome);
+        if (uso.EmpresaNome is not null) partes.Add(uso.EmpresaNome);
+        partes.Add(Rotulos.DataHora(uso.IniciadoEm));
+        return string.Join(" · ", partes);
+    }
+
+    private static string Quilometragem(ControleVeiculos.Shared.UsageRecords.UsageRecordDto uso) =>
+        uso.OdometroFinal is { } fim
+            ? $"{Rotulos.Km(uso.OdometroInicial)} → {Rotulos.Km(fim)} · {fim - uso.OdometroInicial:N0} km rodados"
+            : $"Saída com {Rotulos.Km(uso.OdometroInicial)}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,9 +72,10 @@ else
             return;
         }
 
+        _ehMotorista = AuthState.IsInRole("Motorista");
         try
         {
-            _usos = (await Api.GetUsageRecordsAsync()).ToList();
+            _usos = (await Api.GetUsageRecordsAsync()).OrderByDescending(u => u.IniciadoEm).ToList();
         }
         catch (HttpRequestException)
         {

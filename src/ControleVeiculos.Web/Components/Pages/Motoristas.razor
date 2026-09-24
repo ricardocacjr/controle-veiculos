@@ -6,71 +6,67 @@
 
 <PageTitle>Motoristas</PageTitle>
 
-<h1>Motoristas</h1>
+<h1 class="page-title">Motoristas</h1>
+<p class="page-subtitle">Quem pode registrar uso dos veículos.</p>
 
-@if (!AuthState.IsAuthenticated)
+@if (AuthState.IsAuthenticated)
 {
-    <p>Você precisa <a href="/login">entrar</a> para ver os motoristas.</p>
-}
-else
-{
-    <EditForm Model="_newDriver" OnValidSubmit="HandleCreateAsync">
-        <div class="row g-2 mb-3">
-            <div class="col-md-3">
-                <InputText class="form-control" placeholder="Nome" @bind-Value="_newDriver.Nome" />
+    <div class="section-title">Novo motorista</div>
+    <div class="card-app">
+        <EditForm Model="_newDriver" OnValidSubmit="HandleCreateAsync">
+            <div class="form-grid">
+                <div class="field">
+                    <label>Nome</label>
+                    <InputText class="form-control" @bind-Value="_newDriver.Nome" />
+                </div>
+                <div class="field">
+                    <label>CNH</label>
+                    <InputText class="form-control" @bind-Value="_newDriver.Cnh" inputmode="numeric" />
+                </div>
+                <div class="field">
+                    <label>Telefone</label>
+                    <InputText class="form-control" @bind-Value="_newDriver.Telefone" inputmode="tel" />
+                </div>
             </div>
-            <div class="col-md-3">
-                <InputText class="form-control" placeholder="CNH" @bind-Value="_newDriver.Cnh" />
-            </div>
-            <div class="col-md-3">
-                <InputText class="form-control" placeholder="Telefone" @bind-Value="_newDriver.Telefone" />
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100" disabled="@_loading">Adicionar</button>
-            </div>
-        </div>
-    </EditForm>
+            <button type="submit" class="btn btn-primary btn-app mt-3" disabled="@_loading">
+                <Icon Name="plus" Size="20" /><span>Adicionar motorista</span>
+            </button>
+        </EditForm>
+    </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger">@_error</div>
-    }
+    <div class="mt-3"><Mensagens Erro="@_error" /></div>
 
+    <div class="section-title">Cadastrados</div>
     @if (_drivers is null)
     {
-        <p>Carregando...</p>
+        <div class="loading-block"><span class="spinner"></span> Carregando...</div>
     }
     else if (_drivers.Count == 0)
     {
-        <p>Nenhum motorista cadastrado ainda.</p>
+        <div class="empty-state">
+            <div class="empty-icon"><Icon Name="users" Size="26" /></div>
+            <div>Nenhum motorista cadastrado ainda.</div>
+        </div>
     }
     else
     {
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Nome</th>
-                    <th>CNH</th>
-                    <th>Validade CNH</th>
-                    <th>Telefone</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var driver in _drivers)
-                {
-                    <tr>
-                        <td>@driver.Nome</td>
-                        <td>@driver.Cnh</td>
-                        <td>@(driver.CnhValidade?.ToString("dd/MM/yyyy") ?? "-")</td>
-                        <td>@driver.Telefone</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => HandleDeleteAsync(driver)">Remover</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="list-card">
+            @foreach (var driver in _drivers)
+            {
+                <div class="list-item">
+                    <span class="avatar">@Iniciais(driver.Nome)</span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@driver.Nome</span>
+                        <span class="list-item-sub d-block">
+                            CNH @driver.Cnh@(driver.CnhValidade is { } v ? $" · válida até {v:dd/MM/yyyy}" : "")@(string.IsNullOrWhiteSpace(driver.Telefone) ? "" : $" · {driver.Telefone}")
+                        </span>
+                    </span>
+                    <span class="list-item-actions">
+                        <button class="btn-icon danger" title="Remover" @onclick="() => HandleDeleteAsync(driver)"><Icon Name="trash" Size="18" /></button>
+                    </span>
+                </div>
+            }
+        </div>
     }
 }
 
@@ -144,6 +140,9 @@ else
             _error = "Não foi possível remover o motorista.";
         }
     }
+
+    private static string Iniciais(string nome) =>
+        string.Concat(nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
 
     private class NewDriverModel
     {

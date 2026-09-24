@@ -1,53 +1,21 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Controle de Veículos</a>
-    </div>
-</div>
+@inject AuthState AuthState
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+@foreach (var item in Items)
+{
+    <NavLink class="@(Variant == "side" ? "side-link" : "tab-link")" href="@item.Href" Match="NavLinkMatch.Prefix">
+        <Icon Name="@item.Icon" Size="@(Variant == "side" ? 20 : 24)" />
+        <span>@item.Label</span>
+    </NavLink>
+}
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Início
-            </NavLink>
-        </div>
+@code {
+    /// <summary>"tab" = barra inferior (celular) | "side" = menu lateral (computador).</summary>
+    [Parameter] public string Variant { get; set; } = "tab";
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="veiculos">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Veículos
-            </NavLink>
-        </div>
+    private record NavItem(string Href, string Icon, string Label);
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="motoristas">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Motoristas
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="empresas">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Empresas
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="usos">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Usos registrados
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="motorista/uso">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Meu uso (motorista)
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Entrar
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    // Motorista vê só o próprio fluxo; gestão (Admin/Gestor) vê o cadastro da frota.
+    private IEnumerable<NavItem> Items => AuthState.IsInRole("Motorista")
+        ? [new("motorista/uso", "car", "Uso"), new("usos", "history", "Histórico")]
+        : [new("usos", "clipboard", "Usos"), new("veiculos", "car", "Veículos"), new("motoristas", "users", "Motoristas"), new("empresas", "building", "Empresas")];
+}

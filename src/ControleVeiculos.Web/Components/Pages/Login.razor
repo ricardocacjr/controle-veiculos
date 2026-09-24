@@ -3,61 +3,97 @@
 @inject AuthState AuthState
 @inject NavigationManager Nav
 
-<PageTitle>Entrar</PageTitle>
+<PageTitle>Entrar · Controle de Veículos</PageTitle>
 
-<h1>Entrar</h1>
+<div class="auth-hero">
+    <div class="app-brand-logo"><Icon Name="car" Size="34" /></div>
+    <h1>Controle de Veículos</h1>
+    <p>Registro de uso da frota</p>
+</div>
 
-<EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
-    <div class="mb-3">
-        <label class="form-label">Usuário ou e-mail</label>
-        <InputText class="form-control" @bind-Value="_model.Login" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Senha</label>
-        <InputText class="form-control" type="password" @bind-Value="_model.Password" />
-    </div>
-
-    @if (_error is not null)
+<div class="auth-card">
+    @if (!_mostrarCadastro)
     {
-        <div class="alert alert-danger">@_error</div>
+        <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+            <div class="field">
+                <label>Usuário ou e-mail</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="user" Size="18" /></span>
+                    <InputText class="form-control" @bind-Value="_model.Login" autocapitalize="characters" autocomplete="username" placeholder="Ex.: DANI" />
+                </div>
+            </div>
+            <div class="field">
+                <label>Senha</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="lock" Size="18" /></span>
+                    <InputText class="form-control" type="password" @bind-Value="_model.Password" autocomplete="current-password" />
+                </div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="notice notice-error">@_error</div>
+            }
+
+            <button type="submit" class="btn btn-primary btn-app" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span class="spinner"></span><span>Entrando...</span>
+                }
+                else
+                {
+                    <span>Entrar</span>
+                }
+            </button>
+        </EditForm>
+
+        <button type="button" class="auth-switch" @onclick="() => _mostrarCadastro = true">Não tem conta? Criar conta</button>
     }
-
-    <button type="submit" class="btn btn-primary" disabled="@_loading">Entrar</button>
-</EditForm>
-
-<hr />
-
-<h2>Criar conta</h2>
-
-<EditForm Model="_registerModel" OnValidSubmit="HandleRegisterAsync">
-    <div class="mb-3">
-        <label class="form-label">Nome completo</label>
-        <InputText class="form-control" @bind-Value="_registerModel.NomeCompleto" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">E-mail</label>
-        <InputText class="form-control" @bind-Value="_registerModel.Email" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Senha</label>
-        <InputText class="form-control" type="password" @bind-Value="_registerModel.Password" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Papel</label>
-        <InputSelect class="form-select" @bind-Value="_registerModel.Role">
-            <option value="Admin">Admin</option>
-            <option value="Gestor">Gestor</option>
-            <option value="Motorista">Motorista</option>
-        </InputSelect>
-    </div>
-
-    @if (_registerError is not null)
+    else
     {
-        <div class="alert alert-danger">@_registerError</div>
-    }
+        <EditForm Model="_registerModel" OnValidSubmit="HandleRegisterAsync">
+            <div class="field">
+                <label>Nome completo</label>
+                <InputText class="form-control" @bind-Value="_registerModel.NomeCompleto" autocomplete="name" />
+            </div>
+            <div class="field">
+                <label>E-mail</label>
+                <InputText class="form-control" type="email" @bind-Value="_registerModel.Email" autocomplete="email" />
+            </div>
+            <div class="field">
+                <label>Senha</label>
+                <InputText class="form-control" type="password" @bind-Value="_registerModel.Password" autocomplete="new-password" />
+                <div class="field-hint">Mínimo de 8 caracteres, com letra e número.</div>
+            </div>
+            <div class="field">
+                <label>Papel</label>
+                <InputSelect class="form-select" @bind-Value="_registerModel.Role">
+                    <option value="Motorista">Motorista</option>
+                    <option value="Gestor">Gestor</option>
+                    <option value="Admin">Admin</option>
+                </InputSelect>
+            </div>
 
-    <button type="submit" class="btn btn-secondary" disabled="@_registerLoading">Cadastrar</button>
-</EditForm>
+            @if (_registerError is not null)
+            {
+                <div class="notice notice-error">@_registerError</div>
+            }
+
+            <button type="submit" class="btn btn-primary btn-app" disabled="@_registerLoading">
+                @if (_registerLoading)
+                {
+                    <span class="spinner"></span><span>Criando...</span>
+                }
+                else
+                {
+                    <span>Criar conta</span>
+                }
+            </button>
+        </EditForm>
+
+        <button type="button" class="auth-switch" @onclick="() => _mostrarCadastro = false">Já tenho conta · Entrar</button>
+    }
+</div>
 
 @code {
     private readonly LoginModel _model = new();
@@ -66,6 +102,7 @@
     private string? _registerError;
     private bool _loading;
     private bool _registerLoading;
+    private bool _mostrarCadastro;
 
     private async Task HandleLoginAsync()
     {
@@ -73,15 +110,15 @@
         _error = null;
         try
         {
-            var result = await Api.LoginAsync(_model.Login, _model.Password);
+            var result = await Api.LoginAsync(_model.Login.Trim(), _model.Password);
             if (result is null)
             {
                 _error = "Não foi possível autenticar.";
                 return;
             }
 
-            AuthState.SignIn(result.Token, _model.Login);
-            Nav.NavigateTo("/usos");
+            AuthState.SignIn(result.Token, _model.Login.Trim());
+            Nav.NavigateTo("/");
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -111,7 +148,7 @@
             }
 
             AuthState.SignIn(result.Token, _registerModel.Email);
-            Nav.NavigateTo("/usos");
+            Nav.NavigateTo("/");
         }
         catch (HttpRequestException ex)
         {

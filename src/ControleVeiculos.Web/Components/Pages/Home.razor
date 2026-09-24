@@ -1,13 +1,19 @@
 @page "/"
+@inject AuthState AuthState
+@inject NavigationManager Nav
 
 <PageTitle>Controle de Veículos</PageTitle>
 
-<h1>Controle de Veículos</h1>
+<div class="loading-block"><span class="spinner"></span> Abrindo...</div>
 
-<p>Painel de gestão de frota — veículos, motoristas e uso (odômetro, fotos, notas de voz e abastecimento).</p>
-
-<ul>
-    <li><a href="veiculos">Veículos</a></li>
-    <li><a href="motoristas">Motoristas</a></li>
-    <li><a href="usos">Usos registrados</a></li>
-</ul>
+@code {
+    protected override void OnInitialized()
+    {
+        if (!AuthState.IsAuthenticated)
+            Nav.NavigateTo("/login");
+        else if (AuthState.IsInRole("Motorista"))
+            Nav.NavigateTo("/motorista/uso");
+        else
+            Nav.NavigateTo("/usos");
+    }
+}

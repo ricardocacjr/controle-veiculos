@@ -1,106 +1,126 @@
 @page "/usos/{Id:guid}"
+@using ControleVeiculos.Domain.Enums
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
 
 <PageTitle>Uso registrado</PageTitle>
 
-@if (!AuthState.IsAuthenticated)
+<a class="btn btn-soft mb-3 d-inline-flex align-items-center gap-1" href="usos"><Icon Name="chevron-left" Size="18" /> Voltar</a>
+
+@if (_error is not null)
 {
-    <p>Você precisa <a href="/login">entrar</a> para ver este uso.</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-danger">@_error</div>
+    <Mensagens Erro="@_error" />
 }
 else if (_uso is null)
 {
-    <p>Carregando...</p>
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
 }
 else
 {
-    <h1>@_uso.VeiculoPlaca — @_uso.Finalidade</h1>
+    var status = Rotulos.Uso(_uso.Status);
 
-    <p>
-        <strong>Motorista:</strong> @_uso.MotoristaNome<br />
-        @if (_uso.EmpresaNome is not null)
-        {
-            <text><strong>Empresa:</strong> @_uso.EmpresaNome<br /></text>
-        }
-        <strong>Origem/Destino:</strong> @(_uso.Origem ?? "-") → @(_uso.Destino ?? "-")<br />
-        <strong>Odômetro:</strong> @_uso.OdometroInicial km → @(_uso.OdometroFinal?.ToString() ?? "em andamento") km<br />
-        <strong>Início:</strong> @_uso.IniciadoEm.LocalDateTime<br />
-        <strong>Fim:</strong> @(_uso.FinalizadoEm?.LocalDateTime.ToString() ?? "-")<br />
-        <strong>Status:</strong> @_uso.Status
-    </p>
-
-    <h2>Fotos (@_uso.Fotos.Count)</h2>
-    @if (_uso.Fotos.Count == 0)
-    {
-        <p>Nenhuma foto anexada.</p>
-    }
-    else
-    {
-        <ul>
-            @foreach (var foto in _uso.Fotos)
+    <div class="status-hero">
+        <span class="live-dot">@status.Texto</span>
+        <div class="hero-plate">@_uso.VeiculoPlaca</div>
+        <div class="hero-sub">@_uso.Finalidade@(_uso.EmpresaNome is null ? "" : $" · {_uso.EmpresaNome}")</div>
+        <div class="hero-grid">
+            <div>
+                <div class="hero-label">Motorista</div>
+                <div class="hero-value">@_uso.MotoristaNome</div>
+            </div>
+            <div>
+                <div class="hero-label">Km rodados</div>
+                <div class="hero-value">@(_uso.OdometroFinal is { } f ? $"{f - _uso.OdometroInicial:N0} km" : "—")</div>
+            </div>
+            <div>
+                <div class="hero-label">Saída</div>
+                <div class="hero-value">@Rotulos.DataHora(_uso.IniciadoEm)</div>
+                <div class="hero-sub">@Rotulos.Km(_uso.OdometroInicial)</div>
+            </div>
+            <div>
+                <div class="hero-label">Chegada</div>
+                <div class="hero-value">@(_uso.FinalizadoEm is { } fim ? Rotulos.DataHora(fim) : "Em andamento")</div>
+                @if (_uso.OdometroFinal is { } kmFinal)
+                {
+                    <div class="hero-sub">@Rotulos.Km(kmFinal)</div>
+                }
+            </div>
+            <div class="hero-full">
+                <div class="hero-label">Origem</div>
+                <div class="hero-value">@(_uso.Origem ?? "Não informada")</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_uso.Destino))
             {
-                <li>
-                    @foto.Tipo — @foto.Observacao
-                    @if (foto.OdometroLido is not null)
-                    {
-                        <text> — <strong>leitura OCR: @foto.OdometroLido km</strong></text>
-                    }
-                </li>
+                <div class="hero-full">
+                    <div class="hero-label">Destino</div>
+                    <div class="hero-value">@_uso.Destino</div>
+                </div>
             }
-        </ul>
-    }
+        </div>
+    </div>
 
-    <h2>Notas de voz (@_uso.NotasDeVoz.Count)</h2>
-    @if (_uso.NotasDeVoz.Count == 0)
-    {
-        <p>Nenhuma nota de voz anexada.</p>
-    }
-    else
-    {
-        <ul>
-            @foreach (var nota in _uso.NotasDeVoz)
-            {
-                <li>
-                    <strong>[@nota.Status]</strong>
-                    @(string.IsNullOrWhiteSpace(nota.TranscricaoTexto) ? "(sem transcrição)" : nota.TranscricaoTexto)
-                </li>
-            }
-        </ul>
-    }
-
-    <h2>Abastecimentos (@_uso.Abastecimentos.Count)</h2>
+    <div class="section-title">Abastecimentos (@_uso.Abastecimentos.Count)</div>
     @if (_uso.Abastecimentos.Count == 0)
     {
-        <p>Nenhum abastecimento registrado.</p>
+        <div class="card-app muted">Nenhum abastecimento registrado.</div>
     }
     else
     {
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Litros</th>
-                    <th>Valor total</th>
-                    <th>Valor/litro</th>
-                    <th>Odômetro</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var abastecimento in _uso.Abastecimentos)
-                {
-                    <tr>
-                        <td>@abastecimento.Litros L</td>
-                        <td>R$ @abastecimento.ValorTotal</td>
-                        <td>@(abastecimento.ValorPorLitro is { } vpl ? $"R$ {vpl}" : "-")</td>
-                        <td>@abastecimento.Odometro km</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="list-card">
+            @foreach (var a in _uso.Abastecimentos)
+            {
+                <div class="list-item">
+                    <span class="avatar tone-accent"><Icon Name="fuel" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@a.Litros.ToString("N2") L · R$ @a.ValorTotal.ToString("N2")</span>
+                        <span class="list-item-sub d-block">@(a.ValorPorLitro is { } vpl ? $"R$ {vpl:N3}/L · " : "")@Rotulos.Km(a.Odometro)</span>
+                    </span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="section-title">Notas de voz (@_uso.NotasDeVoz.Count)</div>
+    @if (_uso.NotasDeVoz.Count == 0)
+    {
+        <div class="card-app muted">Nenhuma nota de voz.</div>
+    }
+    else
+    {
+        <div class="list-card">
+            @foreach (var nota in _uso.NotasDeVoz)
+            {
+                <div class="list-item">
+                    <span class="avatar tone-violet"><Icon Name="mic" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="d-block" style="white-space:normal">@(string.IsNullOrWhiteSpace(nota.TranscricaoTexto) ? "(sem transcrição)" : $"“{nota.TranscricaoTexto}”")</span>
+                        <span class="list-item-sub d-block">@StatusNota(nota.Status) · @Rotulos.DataHora(nota.CreatedAt)</span>
+                    </span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="section-title">Fotos (@_uso.Fotos.Count)</div>
+    @if (_uso.Fotos.Count == 0)
+    {
+        <div class="card-app muted">Nenhuma foto anexada.</div>
+    }
+    else
+    {
+        <div class="list-card">
+            @foreach (var foto in _uso.Fotos)
+            {
+                <div class="list-item">
+                    <span class="avatar"><Icon Name="image" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@Rotulos.Foto(foto.Tipo)</span>
+                        <span class="list-item-sub d-block">@Rotulos.DataHora(foto.CreatedAt)@(foto.OdometroLido is { } lido ? $" · km lido: {lido:N0}" : "")</span>
+                    </span>
+                </div>
+            }
+        </div>
     }
 }
 
@@ -110,6 +130,14 @@ else
 
     private ControleVeiculos.Shared.UsageRecords.UsageRecordDetailDto? _uso;
     private string? _error;
+
+    private static string StatusNota(VoiceNoteStatus status) => status switch
+    {
+        VoiceNoteStatus.Transcrito => "Transcrita",
+        VoiceNoteStatus.Pendente => "Transcrevendo...",
+        VoiceNoteStatus.Falhou => "Falha na transcrição",
+        _ => status.ToString(),
+    };
 
     protected override async Task OnInitializedAsync()
     {

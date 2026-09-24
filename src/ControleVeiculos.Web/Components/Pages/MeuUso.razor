@@ -8,185 +8,267 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<PageTitle>Meu uso do veículo</PageTitle>
-
-<h1>Uso do veículo</h1>
+<PageTitle>Uso do veículo</PageTitle>
 
 @if (!AuthState.IsAuthenticated)
 {
-    <p>Você precisa <a href="/login">entrar</a> (com uma conta Motorista) pra registrar um uso.</p>
+    return;
 }
-else if (_loadError is not null)
+
+@if (_loadError is not null)
 {
-    <div class="alert alert-danger">@_loadError</div>
+    <h1 class="page-title">Uso do veículo</h1>
+    <div class="notice notice-error">@_loadError</div>
+    <button class="btn btn-soft btn-app" @onclick="ReloadAsync">Tentar de novo</button>
 }
 else if (_loading)
 {
-    <p>Carregando...</p>
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
 }
 else if (_usoAtual is null)
 {
-    <h2>Iniciar uso</h2>
+    <h1 class="page-title">Nova saída</h1>
+    <p class="page-subtitle">Tire a foto do painel: o km e o endereço de origem são preenchidos sozinhos.</p>
 
-    <div class="mb-3" style="max-width:400px">
-        <label class="form-label small mb-0 d-block">📷 Foto do painel (opcional — preenche odômetro e origem automaticamente)</label>
-        <InputFile OnChange="HandlePainelPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoPainel" />
-        @if (_lendoPainel)
-        {
-            <div class="form-text">Lendo foto...</div>
-        }
+    <label class="photo-cta @(_lendoPainel ? "is-busy" : "")">
+        <InputFile class="file-hidden" OnChange="HandlePainelPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoPainel" />
+        <span class="tile-icon">
+            @if (_lendoPainel)
+            {
+                <span class="spinner"></span>
+            }
+            else
+            {
+                <Icon Name="camera" Size="26" />
+            }
+        </span>
+        <span>
+            <span class="tile-title d-block">@(_lendoPainel ? "Lendo a foto..." : "Fotografar o painel")</span>
+            <span class="tile-sub d-block">Preenche odômetro e origem pela localização</span>
+        </span>
+    </label>
+
+    <div class="mt-3">
+        <Mensagens Erro="@_actionError" Sucesso="@_actionStatus" />
     </div>
 
     <EditForm Model="_startForm" OnValidSubmit="HandleIniciarAsync">
-        <div class="mb-2" style="max-width:400px">
-            <label class="form-label small mb-0">Veículo</label>
-            <InputSelect class="form-select" @bind-Value="_startForm.VeiculoId">
-                <option value="">Selecione...</option>
-                @foreach (var v in _veiculosDisponiveis)
+        <div class="section-title">Dados da saída</div>
+        <div class="card-app">
+            <div class="field">
+                <label>Veículo</label>
+                <InputSelect class="form-select" @bind-Value="_startForm.VeiculoId">
+                    <option value="">Selecione o veículo</option>
+                    @foreach (var v in _veiculosDisponiveis)
+                    {
+                        <option value="@v.Id">@v.Placa · @v.Marca @v.Modelo</option>
+                    }
+                </InputSelect>
+                @if (_veiculosDisponiveis.Count == 0)
                 {
-                    <option value="@v.Id">@v.Placa — @v.Marca @v.Modelo</option>
+                    <div class="field-hint">Nenhum veículo disponível agora.</div>
                 }
-            </InputSelect>
-        </div>
-        <div class="mb-2" style="max-width:400px">
-            <label class="form-label small mb-0">Empresa</label>
-            <InputSelect class="form-select" @bind-Value="_startForm.EmpresaId">
-                <option value="">(nenhuma)</option>
-                @foreach (var emp in _empresas)
-                {
-                    <option value="@emp.Id">@emp.Nome</option>
-                }
-            </InputSelect>
-        </div>
-        <div class="mb-2" style="max-width:400px">
-            <label class="form-label small mb-0">Finalidade</label>
-            <InputText class="form-control" @bind-Value="_startForm.Finalidade" list="motivos-datalist" autocomplete="off" />
-            <datalist id="motivos-datalist">
-                @foreach (var motivo in _motivos)
-                {
-                    <option value="@motivo.Nome" />
-                }
-            </datalist>
-            <div class="form-text">Digite um motivo novo se não achar na lista — ele fica salvo pra próxima vez.</div>
-        </div>
-        <div class="mb-2" style="max-width:400px">
-            <label class="form-label small mb-0">Origem</label>
-            <InputText class="form-control" @bind-Value="_startForm.Origem" />
-        </div>
-        <div class="mb-2" style="max-width:400px">
-            <label class="form-label small mb-0">Destino</label>
-            <InputText class="form-control" @bind-Value="_startForm.Destino" />
-        </div>
-        <div class="mb-3" style="max-width:400px">
-            <label class="form-label small mb-0">Odômetro inicial</label>
-            <InputNumber class="form-control" @bind-Value="_startForm.OdometroInicial" />
+            </div>
+            <div class="field">
+                <label>Empresa</label>
+                <InputSelect class="form-select" @bind-Value="_startForm.EmpresaId">
+                    <option value="">Nenhuma</option>
+                    @foreach (var emp in _empresas)
+                    {
+                        <option value="@emp.Id">@emp.Nome</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="field">
+                <label>Finalidade</label>
+                <InputText class="form-control" @bind-Value="_startForm.Finalidade" list="motivos-datalist" autocomplete="off" placeholder="Ex.: Entrega de móveis" />
+                <datalist id="motivos-datalist">
+                    @foreach (var motivo in _motivos)
+                    {
+                        <option value="@motivo.Nome" />
+                    }
+                </datalist>
+                <div class="field-hint">Se não achar na lista, digite um motivo novo — ele fica salvo.</div>
+            </div>
+            <div class="field">
+                <label>Origem</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="pin" Size="18" /></span>
+                    <InputText class="form-control" @bind-Value="_startForm.Origem" placeholder="Preenchida pela foto" />
+                </div>
+            </div>
+            <div class="field">
+                <label>Destino</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="target" Size="18" /></span>
+                    <InputText class="form-control" @bind-Value="_startForm.Destino" placeholder="Opcional" />
+                </div>
+            </div>
+            <div class="field mb-0">
+                <label>Odômetro inicial (km)</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="gauge" Size="18" /></span>
+                    <InputNumber class="form-control" @bind-Value="_startForm.OdometroInicial" inputmode="numeric" />
+                </div>
+            </div>
         </div>
 
-        @if (_actionError is not null)
-        {
-            <div class="alert alert-danger">@_actionError</div>
-        }
-        @if (_actionStatus is not null)
-        {
-            <div class="alert alert-success">@_actionStatus</div>
-        }
-
-        <button type="submit" class="btn btn-primary" disabled="@_submitting">Iniciar uso</button>
+        <button type="submit" class="btn btn-primary btn-app mt-3" disabled="@_submitting">
+            @if (_submitting)
+            {
+                <span class="spinner"></span><span>Iniciando...</span>
+            }
+            else
+            {
+                <Icon Name="car" Size="20" /><span>Iniciar uso</span>
+            }
+        </button>
     </EditForm>
 }
 else
 {
-    <div class="card mb-3" style="max-width:500px">
-        <div class="card-body">
-            <h5 class="card-title">@_usoAtual.VeiculoPlaca — @_usoAtual.Finalidade</h5>
-            @if (_usoAtual.EmpresaNome is not null)
+    <div class="status-hero">
+        <span class="live-dot">Em uso · @Duracao(_usoAtual.IniciadoEm)</span>
+        <div class="hero-plate">@_usoAtual.VeiculoPlaca</div>
+        <div class="hero-sub">@_usoAtual.Finalidade@(_usoAtual.EmpresaNome is null ? "" : $" · {_usoAtual.EmpresaNome}")</div>
+        <div class="hero-grid">
+            <div>
+                <div class="hero-label">Km inicial</div>
+                <div class="hero-value">@_usoAtual.OdometroInicial.ToString("N0") km</div>
+            </div>
+            <div>
+                <div class="hero-label">Saída</div>
+                <div class="hero-value">@_usoAtual.IniciadoEm.ToLocalTime().ToString("dd/MM HH:mm")</div>
+            </div>
+            <div class="hero-full">
+                <div class="hero-label">Origem</div>
+                <div class="hero-value">@(_usoAtual.Origem ?? "Não informada")</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_usoAtual.Destino))
             {
-                <p class="card-text mb-1"><strong>Empresa:</strong> @_usoAtual.EmpresaNome</p>
+                <div class="hero-full">
+                    <div class="hero-label">Destino</div>
+                    <div class="hero-value">@_usoAtual.Destino</div>
+                </div>
             }
-            <p class="card-text mb-1">@(_usoAtual.Origem ?? "-") → @(_usoAtual.Destino ?? "-")</p>
-            <p class="card-text mb-1">Odômetro inicial: @_usoAtual.OdometroInicial km</p>
-            <p class="card-text text-muted">Iniciado em @_usoAtual.IniciadoEm.LocalDateTime</p>
         </div>
     </div>
-
-    @if (_actionError is not null)
-    {
-        <div class="alert alert-danger">@_actionError</div>
-    }
-    @if (_actionStatus is not null)
-    {
-        <div class="alert alert-success">@_actionStatus</div>
-    }
-
-    <h2>📷 Fotos</h2>
-    <div class="mb-3 d-flex flex-wrap gap-3 align-items-end">
-        <div>
-            <label class="form-label small mb-0 d-block">Odômetro</label>
-            <InputFile OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.OdometroFinal))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
-        </div>
-        <div>
-            <label class="form-label small mb-0 d-block">Avaria</label>
-            <InputFile OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.Avaria))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
-        </div>
-    </div>
-
-    <h2>🎙️ Nota de voz</h2>
-    <div class="mb-3">
-        <InputFile OnChange="HandleVoiceNoteSelectedAsync" accept="audio/*" capture="user" disabled="@_uploadingVoice" />
-        <div class="form-text">No iPhone/Android, isso abre a gravação de áudio direto do navegador.</div>
-    </div>
-
-    <h2>⛽ Abastecimento</h2>
-    <div class="mb-2" style="max-width:400px">
-        <label class="form-label small mb-0 d-block">📷 Foto da nota fiscal ou cupom (opcional — preenche litros e valores automaticamente)</label>
-        <InputFile OnChange="HandleReceiptPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoComprovante" />
-        @if (_lendoComprovante)
-        {
-            <div class="form-text">Lendo comprovante...</div>
-        }
-    </div>
-    <EditForm Model="_fuelForm" OnValidSubmit="HandleFuelAsync">
-        <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
-            <div style="width:100px">
-                <label class="form-label small mb-0">Litros</label>
-                <InputNumber class="form-control" @bind-Value="_fuelForm.Litros" />
-            </div>
-            <div style="width:120px">
-                <label class="form-label small mb-0">Valor total (R$)</label>
-                <InputNumber class="form-control" @bind-Value="_fuelForm.ValorTotal" />
-            </div>
-            <div style="width:110px">
-                <label class="form-label small mb-0">Valor/litro (R$)</label>
-                <InputNumber class="form-control" @bind-Value="_fuelForm.ValorPorLitro" />
-            </div>
-            <div style="width:110px">
-                <label class="form-label small mb-0">Odômetro</label>
-                <InputNumber class="form-control" @bind-Value="_fuelForm.Odometro" />
-            </div>
-            <button type="submit" class="btn btn-outline-primary" disabled="@_submitting">Registrar</button>
-        </div>
-    </EditForm>
 
     @if (_detalhe is not null)
     {
-        <h2>Anexado até agora</h2>
-        <ul>
-            <li>Fotos: @_detalhe.Fotos.Count</li>
-            <li>Notas de voz: @_detalhe.NotasDeVoz.Count</li>
-            <li>Abastecimentos: @_detalhe.Abastecimentos.Count</li>
-        </ul>
+        <div class="counters">
+            <span class="chip"><Icon Name="image" Size="14" /> @_detalhe.Fotos.Count foto(s)</span>
+            <span class="chip"><Icon Name="mic" Size="14" /> @_detalhe.NotasDeVoz.Count nota(s) de voz</span>
+            <span class="chip"><Icon Name="fuel" Size="14" /> @_detalhe.Abastecimentos.Count abastecimento(s)</span>
+        </div>
     }
 
-    <h2>🏁 Finalizar uso</h2>
-    <EditForm Model="_finishForm" OnValidSubmit="HandleFinalizarAsync">
-        <div class="d-flex flex-wrap gap-2 align-items-end">
-            <div style="width:130px">
-                <label class="form-label small mb-0">Odômetro final</label>
-                <InputNumber class="form-control" @bind-Value="_finishForm.OdometroFinal" />
-            </div>
-            <button type="submit" class="btn btn-danger" disabled="@_submitting">Finalizar uso</button>
+    <div class="mt-3">
+        <Mensagens Erro="@_actionError" Sucesso="@_actionStatus" />
+    </div>
+
+    <div class="section-title">Durante o uso</div>
+    <div class="tile-grid">
+        <label class="tile @(_uploadingPhoto ? "is-busy" : "")">
+            <InputFile class="file-hidden" OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.OdometroFinal))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
+            <span class="tile-icon tone-primary"><Icon Name="gauge" /></span>
+            <span><span class="tile-title d-block">Foto do odômetro</span><span class="tile-sub d-block">Preenche o km final</span></span>
+        </label>
+        <label class="tile @(_uploadingPhoto ? "is-busy" : "")">
+            <InputFile class="file-hidden" OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.Avaria))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
+            <span class="tile-icon tone-danger"><Icon Name="alert" /></span>
+            <span><span class="tile-title d-block">Avaria</span><span class="tile-sub d-block">Foto de dano no veículo</span></span>
+        </label>
+        <label class="tile @(_uploadingVoice ? "is-busy" : "")">
+            <InputFile class="file-hidden" OnChange="HandleVoiceNoteSelectedAsync" accept="audio/*" capture="user" disabled="@_uploadingVoice" />
+            <span class="tile-icon tone-violet">
+                @if (_uploadingVoice)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <Icon Name="mic" />
+                }
+            </span>
+            <span><span class="tile-title d-block">Nota de voz</span><span class="tile-sub d-block">Grave e vira texto</span></span>
+        </label>
+        <button type="button" class="tile @(_mostrarAbastecimento ? "is-open" : "")" @onclick="() => _mostrarAbastecimento = !_mostrarAbastecimento">
+            <span class="tile-icon tone-accent"><Icon Name="fuel" /></span>
+            <span><span class="tile-title d-block">Abastecer</span><span class="tile-sub d-block">Foto do cupom ou nota</span></span>
+        </button>
+    </div>
+
+    @if (_mostrarAbastecimento)
+    {
+        <div class="section-title">Abastecimento</div>
+        <div class="card-app">
+            <label class="photo-cta @(_lendoComprovante ? "is-busy" : "") mb-3" style="border-color:#f7d79b;background:var(--accent-50)">
+                <InputFile class="file-hidden" OnChange="HandleReceiptPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoComprovante" />
+                <span class="tile-icon" style="background:var(--accent)">
+                    @if (_lendoComprovante)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <Icon Name="camera" Size="26" />
+                    }
+                </span>
+                <span>
+                    <span class="tile-title d-block">@(_lendoComprovante ? "Lendo o cupom..." : "Fotografar cupom ou nota")</span>
+                    <span class="tile-sub d-block">Preenche litros e valores</span>
+                </span>
+            </label>
+            <EditForm Model="_fuelForm" OnValidSubmit="HandleFuelAsync">
+                <div class="field-row">
+                    <div class="field">
+                        <label>Litros</label>
+                        <InputNumber class="form-control" @bind-Value="_fuelForm.Litros" inputmode="decimal" />
+                    </div>
+                    <div class="field">
+                        <label>Valor total (R$)</label>
+                        <InputNumber class="form-control" @bind-Value="_fuelForm.ValorTotal" inputmode="decimal" />
+                    </div>
+                    <div class="field">
+                        <label>Valor/litro (R$)</label>
+                        <InputNumber class="form-control" @bind-Value="_fuelForm.ValorPorLitro" inputmode="decimal" />
+                    </div>
+                    <div class="field">
+                        <label>Odômetro (km)</label>
+                        <InputNumber class="form-control" @bind-Value="_fuelForm.Odometro" inputmode="numeric" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-warning btn-app text-white" style="background:var(--accent);border-color:var(--accent)" disabled="@_submitting">
+                    <Icon Name="check" Size="20" /><span>Registrar abastecimento</span>
+                </button>
+            </EditForm>
         </div>
-    </EditForm>
+    }
+
+    <div class="section-title">Chegada</div>
+    <div class="card-app">
+        <EditForm Model="_finishForm" OnValidSubmit="HandleFinalizarAsync">
+            <div class="field">
+                <label>Odômetro final (km)</label>
+                <div class="input-with-icon">
+                    <span class="input-icon"><Icon Name="gauge" Size="18" /></span>
+                    <InputNumber class="form-control" @bind-Value="_finishForm.OdometroFinal" inputmode="numeric" />
+                </div>
+                <div class="field-hint">Dica: a "Foto do odômetro" acima preenche este campo.</div>
+            </div>
+            <button type="submit" class="btn btn-danger btn-app" disabled="@_submitting">
+                @if (_submitting)
+                {
+                    <span class="spinner"></span><span>Finalizando...</span>
+                }
+                else
+                {
+                    <Icon Name="flag" Size="20" /><span>Finalizar uso</span>
+                }
+            </button>
+        </EditForm>
+    </div>
 }
 
 @code {
@@ -196,6 +278,7 @@ else
     private bool _uploadingVoice;
     private bool _lendoPainel;
     private bool _lendoComprovante;
+    private bool _mostrarAbastecimento;
     private string? _loadError;
     private string? _actionError;
     private string? _actionStatus;
@@ -205,7 +288,7 @@ else
     private List<EmpresaDto> _empresas = [];
     private List<MotivoUsoDto> _motivos = [];
     private readonly StartForm _startForm = new();
-    private readonly FuelForm _fuelForm = new();
+    private FuelForm _fuelForm = new();
     private readonly FinishForm _finishForm = new();
 
     protected override async Task OnInitializedAsync()
@@ -217,6 +300,15 @@ else
         }
 
         await ReloadAsync();
+    }
+
+    private static string Duracao(DateTimeOffset inicio)
+    {
+        var d = DateTimeOffset.UtcNow - inicio;
+        if (d.TotalMinutes < 1) return "agora";
+        if (d.TotalHours < 1) return $"há {(int)d.TotalMinutes} min";
+        if (d.TotalDays < 1) return $"há {(int)d.TotalHours}h{d.Minutes:00}";
+        return $"há {(int)d.TotalDays} dia(s)";
     }
 
     private async Task ReloadAsync()
@@ -233,6 +325,8 @@ else
                     .ToList();
                 _empresas = (await Api.GetEmpresasAsync()).ToList();
                 _motivos = (await Api.GetMotivosUsoAsync()).ToList();
+                if (_veiculosDisponiveis.Count == 1 && string.IsNullOrEmpty(_startForm.VeiculoId))
+                    _startForm.VeiculoId = _veiculosDisponiveis[0].Id.ToString();
             }
             else
             {
@@ -253,11 +347,17 @@ else
     {
         _submitting = true;
         _actionError = null;
+        _actionStatus = null;
         try
         {
             if (!Guid.TryParse(_startForm.VeiculoId, out var veiculoId))
             {
                 _actionError = "Selecione um veículo.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(_startForm.Finalidade))
+            {
+                _actionError = "Informe a finalidade.";
                 return;
             }
 
@@ -300,7 +400,7 @@ else
 
             var mensagem = leitura is { OdometroLido: null, EnderecoSugerido: null }
                 ? "Não consegui ler nada dessa foto — preencha manualmente."
-                : "Foto lida — confira os campos preenchidos antes de iniciar.";
+                : "Foto lida — confira os campos antes de iniciar.";
             if (geo?.Error is not null)
                 mensagem += $" (Localização não capturada: {geo.Error})";
             _actionStatus = mensagem;
@@ -334,7 +434,7 @@ else
             var foto = await Api.UploadFotoAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType, tipo, null);
             if (foto?.OdometroLido is { } lido)
             {
-                _actionStatus = $"Foto enviada. Leitura sugerida do odômetro: {lido} km — confira antes de usar.";
+                _actionStatus = $"Foto enviada. Km lido: {lido} — confira antes de finalizar.";
                 if (tipo == VehiclePhotoType.OdometroFinal)
                     _finishForm.OdometroFinal = lido;
             }
@@ -371,7 +471,7 @@ else
             memoryStream.Position = 0;
 
             await Api.UploadNotaDeVozAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType);
-            _actionStatus = "Nota de voz enviada — transcrição pode levar alguns segundos.";
+            _actionStatus = "Nota de voz enviada — a transcrição pode levar alguns segundos.";
             _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
@@ -409,7 +509,7 @@ else
                 _fuelForm.ValorPorLitro = valorPorLitro;
 
             _actionStatus = leitura is { Litros: null, ValorTotal: null, ValorPorLitro: null }
-                ? "Não consegui ler nada desse comprovante — preencha manualmente."
+                ? "Não consegui ler esse comprovante — preencha manualmente."
                 : "Comprovante lido — confira os valores antes de registrar.";
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
@@ -429,11 +529,14 @@ else
 
         _submitting = true;
         _actionError = null;
+        _actionStatus = null;
         try
         {
             await Api.AddAbastecimentoAsync(_usoAtual.Id, new AddFuelEntryRequest(
                 _fuelForm.Litros, _fuelForm.ValorTotal, _fuelForm.Odometro, _fuelForm.ValorPorLitro));
             _actionStatus = "Abastecimento registrado.";
+            _fuelForm = new FuelForm();
+            _mostrarAbastecimento = false;
             _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
         }
         catch (HttpRequestException ex)
@@ -453,11 +556,13 @@ else
 
         _submitting = true;
         _actionError = null;
+        _actionStatus = null;
         try
         {
             await Api.FinalizarUsoAsync(_usoAtual.Id, _finishForm.OdometroFinal);
             _usoAtual = null;
             _detalhe = null;
+            _actionStatus = "Uso finalizado. Obrigado!";
             await ReloadAsync();
         }
         catch (HttpRequestException ex)
