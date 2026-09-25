@@ -781,3 +781,19 @@
 .barra-meta { color: var(--muted); font-size: 13px; }
 
 .consumo-tabela td, .consumo-tabela th { padding: 10px 12px !important; white-space: nowrap; }
+
+/* ---------- Apagar saídas (só admin) ---------- */
+
+.zona-perigo {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--border);
+}
+
+    .zona-perigo > .btn-soft { color: var(--danger); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+.zerar-card { border: 2px solid var(--danger); }
+.zerar-titulo { display: flex; align-items: center; gap: 8px; color: var(--danger); font-weight: 800; font-size: 19px; margin-bottom: 8px; }
+.zerar-palavra { font-family: ui-monospace, monospace; background: var(--danger-50); color: var(--danger); padding: 1px 6px; border-radius: 6px; }
+.zerar-acoes { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; }
+    .zerar-acoes .btn-danger.btn-app { min-height: 52px; font-size: 17px; }

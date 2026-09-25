@@ -47,7 +47,83 @@ else
     </div>
 }
 
+<Mensagens Sucesso="@_ok" />
+
+@if (AuthState.IsInRole("Admin") && !_ehMotorista && _usos is { Count: > 0 })
+{
+    <div class="zona-perigo">
+        @if (!_confirmandoZerar)
+        {
+            <button type="button" class="btn btn-soft btn-app" @onclick="AbrirZerar">
+                <Icon Name="trash" Size="18" /><span>Zerar todos os usos</span>
+            </button>
+            <div class="field-hint text-center mt-2">Para começar do zero depois de treinar a equipe.</div>
+        }
+        else
+        {
+            <div class="card-app zerar-card">
+                <div class="zerar-titulo"><Icon Name="alert" Size="22" /> Apagar as @_usos.Count saídas?</div>
+                <p class="mb-2">Some <b>tudo</b> do histórico: saídas, fotos, áudios e abastecimentos. <b>Não dá pra desfazer.</b></p>
+                <p class="muted mb-3" style="font-size:14px">Ficam: motoristas e PINs, veículos (com o km atual), empresas e motivos.</p>
+                <label class="fw-bold mb-1">Para confirmar, digite <span class="zerar-palavra">ZERAR</span></label>
+                <input class="form-control" @bind="_confirmacao" @bind:event="oninput" autocapitalize="characters" autocomplete="off" placeholder="ZERAR" />
+                <Mensagens Erro="@_erroZerar" />
+                <div class="zerar-acoes mt-3">
+                    <button type="button" class="btn btn-soft btn-app" disabled="@_zerando" @onclick="() => _confirmandoZerar = false">Cancelar</button>
+                    <button type="button" class="btn btn-danger btn-app" disabled="@(_zerando || !ConfirmacaoOk)" @onclick="ZerarAsync">
+                        @if (_zerando)
+                        {
+                            <span class="spinner"></span><span>Apagando...</span>
+                        }
+                        else
+                        {
+                            <span>Apagar tudo</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
 @code {
+    private bool _confirmandoZerar;
+    private string? _confirmacao;
+    private bool _zerando;
+    private string? _erroZerar;
+    private string? _ok;
+
+    private bool ConfirmacaoOk => string.Equals(_confirmacao?.Trim(), "ZERAR", StringComparison.OrdinalIgnoreCase);
+
+    private void AbrirZerar()
+    {
+        _confirmandoZerar = true;
+        _confirmacao = null;
+        _erroZerar = null;
+        _ok = null;
+    }
+
+    private async Task ZerarAsync()
+    {
+        _zerando = true;
+        _erroZerar = null;
+        try
+        {
+            var apagadas = await Api.ZerarUsosAsync(_confirmacao ?? "");
+            _confirmandoZerar = false;
+            _usos = [];
+            _ok = $"Pronto! {apagadas} saída(s) apagada(s). O histórico começa do zero.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroZerar = ex.Message;
+        }
+        finally
+        {
+            _zerando = false;
+        }
+    }
+
     private List<ControleVeiculos.Shared.UsageRecords.UsageRecordDto>? _usos;
     private string? _error;
     private bool _ehMotorista;

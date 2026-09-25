@@ -3,6 +3,7 @@
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Uso registrado</PageTitle>
 
@@ -137,12 +138,53 @@ else
     }
 }
 
+@if (_uso is not null && AuthState.IsInRole("Admin"))
+{
+    <div class="zona-perigo">
+        <Mensagens Erro="@_erroExcluir" />
+        <button type="button" class="btn btn-soft btn-app" disabled="@_excluindo" @onclick="ExcluirAsync">
+            @if (_excluindo)
+            {
+                <span class="spinner"></span><span>Apagando...</span>
+            }
+            else
+            {
+                <Icon Name="trash" Size="18" /><span>Apagar esta saída</span>
+            }
+        </button>
+        <div class="field-hint text-center mt-2">Ex.: saída feita num treinamento. Some com fotos, áudios e abastecimentos.</div>
+    </div>
+}
+
 @code {
     [Parameter]
     public Guid Id { get; set; }
 
     private ControleVeiculos.Shared.UsageRecords.UsageRecordDetailDto? _uso;
     private string? _error;
+    private bool _excluindo;
+    private string? _erroExcluir;
+
+    private async Task ExcluirAsync()
+    {
+        var confirmar = await JS.InvokeAsync<bool>("confirm",
+            $"Apagar a saída de {_uso!.MotoristaNome} em {Rotulos.DataHora(_uso.IniciadoEm)} ({_uso.Finalidade})?\n\nSome com fotos, áudios e abastecimentos. Não dá pra desfazer.");
+        if (!confirmar)
+            return;
+
+        _excluindo = true;
+        _erroExcluir = null;
+        try
+        {
+            await Api.ExcluirUsoAsync(Id);
+            Nav.NavigateTo("/usos");
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroExcluir = ex.Message;
+            _excluindo = false;
+        }
+    }
 
     private static string StatusNota(VoiceNoteStatus status) => status switch
     {

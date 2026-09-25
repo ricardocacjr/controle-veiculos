@@ -60,6 +60,69 @@ public class UsageRecordsController(
         return Ok(ToDetailDto(usage));
     }
 
+    /// <summary>Apaga uma saída (ex.: feita num treinamento) com fotos, áudios e abastecimentos. Só Admin.</summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> Excluir(Guid id, CancellationToken ct)
+    {
+        var usage = await usageRepository.GetByIdAsync(id, ct);
+        if (usage is null)
+            return NotFound();
+
+        if (usage.Status == UsageRecordStatus.EmAndamento)
+            await LiberarVeiculosAsync(usage.VeiculoId, ct);
+        await usageRepository.ExcluirAsync([id], ct);
+        ApagarArquivos([id]);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Zera o histórico: apaga TODAS as saídas (pra começar do zero depois de treinar a equipe).
+    /// Motoristas, veículos (com o km atual), empresas e motivos ficam. Exige digitar "ZERAR".
+    /// </summary>
+    [HttpPost("zerar")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<ZerarUsosResponse>> Zerar(ZerarUsosRequest request, CancellationToken ct)
+    {
+        if (!string.Equals(request.Confirmacao?.Trim(), "ZERAR", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Digite ZERAR para confirmar.");
+
+        await LiberarVeiculosAsync(null, ct);
+        var apagadas = await usageRepository.ExcluirAsync(null, ct);
+        ApagarArquivos(apagadas);
+        return Ok(new ZerarUsosResponse(apagadas.Count));
+    }
+
+    /// <summary>Carro que estava "em uso" numa saída apagada volta a "disponível".</summary>
+    private async Task LiberarVeiculosAsync(Guid? veiculoId, CancellationToken ct)
+    {
+        List<Vehicle?> veiculos = veiculoId is { } id
+            ? [await vehicleRepository.GetByIdAsync(id, ct)]
+            : [.. await vehicleRepository.ListAsync(ct)];
+        foreach (var v in veiculos.Where(v => v?.Status == VehicleStatus.EmUso))
+        {
+            v!.Status = VehicleStatus.Disponivel;
+            vehicleRepository.Update(v);
+        }
+        await vehicleRepository.SaveChangesAsync(ct);
+    }
+
+    private void ApagarArquivos(IEnumerable<Guid> ids)
+    {
+        var basePath = Path.Combine(environment.ContentRootPath, configuration["Storage:UsageRecordsPath"] ?? "App_Data/usage-records");
+        foreach (var id in ids)
+        {
+            try
+            {
+                var pasta = Path.Combine(basePath, id.ToString());
+                if (Directory.Exists(pasta))
+                    Directory.Delete(pasta, recursive: true);
+            }
+            catch (IOException) { } // arquivo órfão não impede nada; o registro já foi apagado
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
     [HttpPost("iniciar")]
     [Authorize(Roles = Roles.Motorista)]
     public async Task<ActionResult<UsageRecordDto>> Start(StartUsageRequest request, CancellationToken ct)

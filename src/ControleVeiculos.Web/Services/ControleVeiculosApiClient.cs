@@ -217,6 +217,22 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<List<UsageRecordDto>>() ?? [];
     }
 
+    public async Task ExcluirUsoAsync(Guid id)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Delete, $"api/usagerecords/{id}");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
+    public async Task<int> ZerarUsosAsync(string confirmacao)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Post, "api/usagerecords/zerar");
+        request.Content = JsonContent.Create(new ZerarUsosRequest(confirmacao));
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return (await response.Content.ReadFromJsonAsync<ZerarUsosResponse>())?.Apagadas ?? 0;
+    }
+
     public async Task<ControleVeiculos.Shared.Relatorios.RelatorioDto?> GetRelatorioAsync(DateOnly de, DateOnly ate)
     {
         using var request = AuthorizedRequest(HttpMethod.Get, $"api/relatorios?{PeriodoQuery(de, ate)}");

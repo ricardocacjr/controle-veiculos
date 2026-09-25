@@ -67,6 +67,25 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .OrderBy(u => u.IniciadoEm)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Guid>> ExcluirAsync(IReadOnlyCollection<Guid>? ids, CancellationToken ct = default)
+    {
+        var alvo = await (ids is null ? Set : Set.Where(u => ids.Contains(u.Id)))
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+        if (alvo.Count == 0)
+            return alvo;
+
+        // Filhos primeiro e tudo numa transação: não depende do cascade do banco (TiDB pode estar
+        // com as foreign keys desligadas) e não deixa saída pela metade se algo falhar.
+        await using var tx = await Context.Database.BeginTransactionAsync(ct);
+        await Context.Set<FuelEntry>().Where(f => alvo.Contains(f.UsoId)).ExecuteDeleteAsync(ct);
+        await Context.Set<VoiceNote>().Where(n => alvo.Contains(n.UsoId)).ExecuteDeleteAsync(ct);
+        await Context.Set<VehiclePhoto>().Where(p => alvo.Contains(p.UsoId)).ExecuteDeleteAsync(ct);
+        await Set.Where(u => alvo.Contains(u.Id)).ExecuteDeleteAsync(ct);
+        await tx.CommitAsync(ct);
+        return alvo;
+    }
+
     public async Task AddPhotoAsync(VehiclePhoto photo, CancellationToken ct = default) =>
         await Context.Set<VehiclePhoto>().AddAsync(photo, ct);
 
