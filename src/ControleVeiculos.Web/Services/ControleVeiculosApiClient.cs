@@ -217,6 +217,19 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<List<UsageRecordDto>>() ?? [];
     }
 
+    public async Task<ControleVeiculos.Shared.Relatorios.RelatorioDto?> GetRelatorioAsync(DateOnly de, DateOnly ate)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, $"api/relatorios?{PeriodoQuery(de, ate)}");
+        var response = await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Relatorios.RelatorioDto>();
+    }
+
+    /// <summary>URL completa da planilha — baixada pelo navegador (cvBaixar), não pelo circuito do Blazor.</summary>
+    public string RelatorioExcelUrl(DateOnly de, DateOnly ate) => UrlApi($"api/relatorios/excel?{PeriodoQuery(de, ate)}");
+
+    private static string PeriodoQuery(DateOnly de, DateOnly ate) => $"de={de:yyyy-MM-dd}&ate={ate:yyyy-MM-dd}";
+
     public async Task<UsageRecordDetailDto?> GetUsageRecordDetailAsync(Guid id)
     {
         using var request = AuthorizedRequest(HttpMethod.Get, $"api/usagerecords/{id}");

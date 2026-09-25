@@ -1,0 +1,329 @@
+@page "/relatorios"
+@using ControleVeiculos.Shared.Relatorios
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Relatórios</PageTitle>
+
+<h1 class="page-title">Relatórios</h1>
+<p class="page-subtitle">Quanto os veículos rodaram, com quem, para qual empresa e quanto custou.</p>
+
+<div class="periodo-chips">
+    @foreach (var (chave, texto) in Atalhos)
+    {
+        <button type="button" class="periodo-chip @(_atalho == chave ? "ativo" : "")" @onclick="() => EscolherAsync(chave)">@texto</button>
+    }
+</div>
+
+@if (_atalho == "datas")
+{
+    <div class="card-app periodo-datas">
+        <div class="field mb-0">
+            <label>De</label>
+            <input type="date" class="form-control" @bind="_deEscolhido" />
+        </div>
+        <div class="field mb-0">
+            <label>Até</label>
+            <input type="date" class="form-control" @bind="_ateEscolhido" />
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="AplicarDatasAsync">Ver</button>
+    </div>
+}
+
+<div class="periodo-linha">
+    <span class="muted">@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</span>
+    <button type="button" class="btn btn-soft" disabled="@(_baixando || _rel is null)" @onclick="BaixarAsync">
+        @if (_baixando)
+        {
+            <span class="spinner"></span><span>Gerando...</span>
+        }
+        else
+        {
+            <Icon Name="download" Size="18" /><span>Baixar planilha (Excel)</span>
+        }
+    </button>
+</div>
+
+<Mensagens Erro="@_erro" />
+
+@if (_carregando)
+{
+    <div class="loading-block"><span class="spinner"></span> Calculando...</div>
+}
+else if (_rel is { } rel)
+{
+    var r = rel.Resumo;
+    <div class="kpi-grid">
+        <div class="kpi">
+            <div class="kpi-icone tone-primary"><Icon Name="clipboard" Size="20" /></div>
+            <div class="kpi-valor">@r.Saidas</div>
+            <div class="kpi-rotulo">saídas</div>
+            @if (r.EmAndamento > 0)
+            {
+                <div class="kpi-extra">@r.EmAndamento em andamento</div>
+            }
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone tone-accent"><Icon Name="gauge" Size="20" /></div>
+            <div class="kpi-valor">@r.KmRodados.ToString("N0")</div>
+            <div class="kpi-rotulo">km rodados</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone tone-violet"><Icon Name="clock" Size="20" /></div>
+            <div class="kpi-valor">@Horas(r.Horas)</div>
+            <div class="kpi-rotulo">horas de uso</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-icone tone-success"><Icon Name="fuel" Size="20" /></div>
+            <div class="kpi-valor">@r.GastoCombustivel.ToString("C0")</div>
+            <div class="kpi-rotulo">em combustível</div>
+            <div class="kpi-extra">@r.Litros.ToString("N1") L · @r.Abastecimentos abastec.</div>
+        </div>
+    </div>
+
+    <div class="section-title">Alertas (@rel.Alertas.Count)</div>
+    @if (rel.Alertas.Count == 0)
+    {
+        <div class="notice notice-success">Nenhum alerta no período. ✅</div>
+    }
+    else
+    {
+        <div class="list-card">
+            @foreach (var a in _todosAlertas ? rel.Alertas : rel.Alertas.Take(5))
+            {
+                var (chip, texto) = Gravidade(a.Gravidade);
+                <a class="list-item alerta-item" href="@(a.UsoId is { } id ? $"usos/{id}" : null)">
+                    <span class="list-item-main">
+                        <span class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="chip @chip">@texto</span>
+                            <span class="list-item-title">@a.Tipo</span>
+                        </span>
+                        <span class="list-item-sub d-block alerta-texto">@a.Descricao</span>
+                    </span>
+                    @if (a.UsoId is not null)
+                    {
+                        <Icon Name="chevron-right" Size="18" Class="muted" />
+                    }
+                </a>
+            }
+        </div>
+        @if (rel.Alertas.Count > 5)
+        {
+            <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="() => _todosAlertas = !_todosAlertas">
+                @(_todosAlertas ? "Mostrar menos" : $"Ver todos os {rel.Alertas.Count} alertas")
+            </button>
+        }
+    }
+
+    <div class="section-title">Quem, para quem e por quê</div>
+    <div class="seg">
+        @foreach (var (chave, texto) in Visoes)
+        {
+            <button type="button" class="seg-btn @(_visao == chave ? "ativo" : "")" @onclick="() => _visao = chave">@texto</button>
+        }
+    </div>
+    var grupos = _visao switch { "empresa" => rel.PorEmpresa, "motivo" => rel.PorMotivo, _ => rel.PorMotorista };
+    var porKm = grupos.Any(g => g.KmRodados > 0);
+    var maximo = Math.Max(1, grupos.Count == 0 ? 1 : grupos.Max(g => porKm ? g.KmRodados : g.Saidas));
+    var totalKm = Math.Max(1, grupos.Sum(g => g.KmRodados));
+    @if (grupos.Count == 0)
+    {
+        <div class="empty-state"><div>Nenhuma saída no período.</div></div>
+    }
+    else
+    {
+        <div class="card-app barras">
+            @foreach (var g in grupos)
+            {
+                var valor = porKm ? g.KmRodados : g.Saidas;
+                <div class="barra-linha">
+                    <div class="barra-topo">
+                        <span class="barra-nome">@g.Nome</span>
+                        <span class="barra-valor">
+                            @if (porKm)
+                            {
+                                @($"{g.KmRodados:N0} km") <small class="muted">(@((100.0 * g.KmRodados / totalKm).ToString("N0"))%)</small>
+                            }
+                            else
+                            {
+                                @($"{g.Saidas} saída(s)")
+                            }
+                        </span>
+                    </div>
+                    <div class="barra-trilho"><div class="barra-cheia" style="width:@((100.0 * valor / maximo).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
+                    <div class="barra-meta">@g.Saidas saída(s) · @Horas(g.Horas) h@(g.GastoCombustivel > 0 ? $" · {g.GastoCombustivel:C} combustível" : "")</div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="section-title">Consumo (últimos 12 meses)</div>
+    @if (rel.Consumo.Count == 0)
+    {
+        <div class="empty-state"><div>Ainda sem dados de consumo.</div></div>
+    }
+    else
+    {
+        var variosVeiculos = rel.Consumo.Select(c => c.Veiculo).Distinct().Count() > 1;
+        <div class="table-card">
+            <table class="table consumo-tabela">
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        @if (variosVeiculos)
+                        {
+                            <th>Veículo</th>
+                        }
+                        <th class="text-end">Km</th>
+                        <th class="text-end">Litros</th>
+                        <th class="text-end">Km/L</th>
+                        <th class="text-end">R$/km</th>
+                        <th class="text-end">R$/litro</th>
+                        <th class="text-end">Gasto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in rel.Consumo)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@NomeMes(c.Ano, c.Mes)</td>
+                            @if (variosVeiculos)
+                            {
+                                <td class="text-nowrap">@c.Veiculo</td>
+                            }
+                            <td class="text-end">@c.KmRodados.ToString("N0")</td>
+                            <td class="text-end">@c.Litros.ToString("N1")</td>
+                            <td class="text-end fw-bold">@(c.KmPorLitro?.ToString("N1") ?? "—")</td>
+                            <td class="text-end">@(c.CustoPorKm?.ToString("C") ?? "—")</td>
+                            <td class="text-end">@(c.PrecoMedioLitro?.ToString("N2") ?? "—")</td>
+                            <td class="text-end text-nowrap">@c.Gasto.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="field-hint mt-2">Km/L = km rodados no mês ÷ litros abastecidos no mês. Mês a mês oscila (abasteceu num mês, rodou no outro); olhe a tendência.</div>
+    }
+}
+
+@code {
+    private static readonly (string Chave, string Texto)[] Atalhos =
+    [
+        ("mes", "Este mês"), ("anterior", "Mês passado"), ("30", "Últimos 30 dias"), ("ano", "Este ano"), ("datas", "Escolher datas"),
+    ];
+
+    private static readonly (string Chave, string Texto)[] Visoes =
+    [
+        ("motorista", "Motorista"), ("empresa", "Empresa"), ("motivo", "Motivo"),
+    ];
+
+    private string _atalho = "mes";
+    private string _visao = "motorista";
+    private DateOnly _de;
+    private DateOnly _ate;
+    private DateOnly _deEscolhido;
+    private DateOnly _ateEscolhido;
+    private RelatorioDto? _rel;
+    private bool _carregando;
+    private bool _baixando;
+    private bool _todosAlertas;
+    private string? _erro;
+
+    private static DateOnly Hoje => DateOnly.FromDateTime(Rotulos.Local(DateTimeOffset.UtcNow).DateTime);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated || !AuthState.EhGestao)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        _deEscolhido = Hoje.AddDays(-29);
+        _ateEscolhido = Hoje;
+        await EscolherAsync("mes");
+    }
+
+    private async Task EscolherAsync(string atalho)
+    {
+        _atalho = atalho;
+        var hoje = Hoje;
+        var inicioMes = new DateOnly(hoje.Year, hoje.Month, 1);
+        (DateOnly De, DateOnly Ate)? periodo = atalho switch
+        {
+            "mes" => (inicioMes, hoje),
+            "anterior" => (inicioMes.AddMonths(-1), inicioMes.AddDays(-1)),
+            "30" => (hoje.AddDays(-29), hoje),
+            "ano" => (new DateOnly(hoje.Year, 1, 1), hoje),
+            _ => null, // "datas": espera a pessoa escolher e tocar em "Ver"
+        };
+        if (periodo is { } p)
+            await CarregarAsync(p.De, p.Ate);
+    }
+
+    private async Task AplicarDatasAsync()
+    {
+        _erro = null;
+        if (_ateEscolhido < _deEscolhido)
+        {
+            _erro = "A data final precisa ser depois da inicial.";
+            return;
+        }
+        await CarregarAsync(_deEscolhido, _ateEscolhido);
+    }
+
+    private async Task CarregarAsync(DateOnly de, DateOnly ate)
+    {
+        _de = de;
+        _ate = ate;
+        _carregando = true;
+        _erro = null;
+        _todosAlertas = false;
+        try
+        {
+            _rel = await Api.GetRelatorioAsync(de, ate);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _rel = null;
+            _erro = "Não foi possível gerar o relatório. Tente de novo.";
+        }
+        finally
+        {
+            _carregando = false;
+        }
+    }
+
+    private async Task BaixarAsync()
+    {
+        _baixando = true;
+        _erro = null;
+        try
+        {
+            var nome = $"relatorio-veiculos-{_de:yyyy-MM-dd}-a-{_ate:yyyy-MM-dd}.xlsx";
+            _erro = await JS.InvokeAsync<string?>("cvBaixar", Api.RelatorioExcelUrl(_de, _ate), AuthState.Token, nome);
+        }
+        catch (JSException)
+        {
+            _erro = "Não consegui baixar a planilha. Tente de novo.";
+        }
+        finally
+        {
+            _baixando = false;
+        }
+    }
+
+    private static string Horas(double horas) => horas.ToString(horas >= 100 ? "N0" : "N1");
+
+    private static string NomeMes(int ano, int mes) =>
+        new DateTime(ano, mes, 1).ToString("MMM/yy").TrimEnd('.').Replace("./", "/");
+
+    private static (string Chip, string Texto) Gravidade(GravidadeAlerta g) => g switch
+    {
+        GravidadeAlerta.Alta => ("chip-danger", "Atenção"),
+        GravidadeAlerta.Media => ("chip-warning", "Conferir"),
+        _ => ("chip-primary", "Info"),
+    };
+}

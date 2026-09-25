@@ -65,7 +65,7 @@ else
     private bool NaTelaDeAcesso => Caminho is "/login" or "/primeiro-acesso";
 
     private bool NaAdministracao => Caminho.StartsWith("/usos") && AuthState.EhGestao
-        || Caminho.StartsWith("/veiculos") || Caminho.StartsWith("/motoristas") || Caminho.StartsWith("/empresas");
+        || Caminho.StartsWith("/relatorios") || Caminho.StartsWith("/veiculos") || Caminho.StartsWith("/motoristas") || Caminho.StartsWith("/empresas");
 
     // Motorista não tem menu nenhum (entra direto no "uso"); o menu é só da administração.
     private bool MostrarMenu => AuthState.EhGestao && NaAdministracao;

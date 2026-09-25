@@ -55,6 +55,18 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .Include(u => u.Empresa)
             .FirstOrDefaultAsync(u => u.MotoristaId == motoristaId && u.Status == UsageRecordStatus.EmAndamento, ct);
 
+    public async Task<IReadOnlyList<UsageRecord>> ListParaRelatorioAsync(DateTimeOffset desde, CancellationToken ct = default) =>
+        await Set.AsNoTracking()
+            .Include(u => u.Veiculo)
+            .Include(u => u.Motorista)
+            .Include(u => u.Empresa)
+            .Include(u => u.Abastecimentos)
+            .Include(u => u.Fotos)
+            .AsSplitQuery()
+            .Where(u => u.IniciadoEm >= desde || u.Status == UsageRecordStatus.EmAndamento)
+            .OrderBy(u => u.IniciadoEm)
+            .ToListAsync(ct);
+
     public async Task AddPhotoAsync(VehiclePhoto photo, CancellationToken ct = default) =>
         await Context.Set<VehiclePhoto>().AddAsync(photo, ct);
 

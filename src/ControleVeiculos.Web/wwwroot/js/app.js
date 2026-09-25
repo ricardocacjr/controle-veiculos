@@ -75,6 +75,31 @@ window.cvEnvio = (() => {
     return { enviar, avisar, esperar };
 })();
 
+// Baixa um arquivo protegido da Api (planilha do relatório) e entrega como download do navegador.
+// Devolve null se deu certo, ou a mensagem de erro.
+window.cvBaixar = async (url, token, nomeArquivo) => {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+        if (tentativa > 0) await cvEnvio.esperar(3000);
+        try {
+            const resp = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+            if ([502, 503, 504].includes(resp.status)) continue; // servidor acordando
+            if (!resp.ok) return (await resp.text()) || `Erro ${resp.status}`;
+            const blob = await resp.blob();
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = nomeArquivo;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+            return null;
+        } catch {
+            return "Não consegui baixar (sem internet?). Tente de novo.";
+        }
+    }
+    return "O servidor está acordando. Tente de novo em alguns segundos.";
+};
+
 // Foto reduzida no próprio celular (foto do iPhone tem 3-5 MB; isso sobe ~300 KB).
 window.cvImagem = {
     reduzir: async (file, lado, qualidade) => {

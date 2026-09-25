@@ -121,6 +121,19 @@ próprio app em WAV 16 kHz — o iPhone grava AAC, que o Google Speech v1 não a
 (foto do painel **obrigatória**, validada no servidor; avisa se não estiver na base). Link
 discreto "Minhas saídas" pro histórico.
 
+### Relatórios (administração)
+
+Menu **Relatórios** (`/relatorios`, só Admin/Gestor; Api `GET api/relatorios?de=&ate=` e
+`GET api/relatorios/excel`), período em datas de Brasília (padrão: mês atual):
+
+- **Resumo** — saídas, km rodados, horas de uso, litros e R$ de combustível (km/horas só de saídas encerradas).
+- **Por motorista / empresa / motivo** — saídas, km, horas e combustível de cada um.
+- **Consumo** — últimos 12 meses por veículo: km/L (km do mês ÷ litros do mês), R$/km, preço médio do litro.
+- **Alertas** — saída sem chegada há mais de 12 h; km rodado sem registro entre uma chegada e a
+  saída seguinte do mesmo carro (ou km que voltou); saída com mais de 500 km; saída fora da base
+  (seção `Base` do `appsettings.json` da **Api**) ou sem GPS; abastecimento sem foto do comprovante.
+- **Planilha Excel** (ClosedXML) com uma aba por visão + todas as saídas e abastecimentos (link do mapa).
+
 Sem o ping, a primeira requisição depois de o Render dormir volta 502 por alguns segundos; o login
 do painel tenta de novo sozinho e, se ainda falhar, avisa que o servidor está iniciando.
 

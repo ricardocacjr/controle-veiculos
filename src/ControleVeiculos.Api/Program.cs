@@ -24,6 +24,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.Configure<ControleVeiculos.Api.Relatorios.BaseOperacional>(builder.Configuration.GetSection("Base"));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Seção 'Jwt' não configurada em appsettings.json.");
