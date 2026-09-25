@@ -27,6 +27,10 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
     private static readonly Regex MoneyPattern = new(@"(\d{1,4}[.,]\d{2})", RegexOptions.Compiled);
     private static readonly Regex QuantityPattern = new(@"(\d{1,3}[.,]\d{2,4})", RegexOptions.Compiled);
 
+    // Preço do litro vem com 3 casas nos postos ("R$ 5,879") — com o padrão de dinheiro (2 casas)
+    // virava 5,87.
+    private static readonly Regex UnitPricePattern = new(@"(\d{1,2}[.,]\d{2,3})(?!\d)", RegexOptions.Compiled);
+
     public async Task<FuelReceiptReading> ExtractAsync(Stream imageStream, CancellationToken ct = default)
     {
         var credentialsPath = configuration["GoogleCloud:CredentialsPath"];
@@ -61,7 +65,7 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
 
             var valorPorLitro = ParseFromLines(linhas, l => l.Contains("UNIT", StringComparison.OrdinalIgnoreCase)
                 || l.Contains("PREÇO", StringComparison.OrdinalIgnoreCase)
-                || l.Contains("PRECO", StringComparison.OrdinalIgnoreCase), MoneyPattern);
+                || l.Contains("PRECO", StringComparison.OrdinalIgnoreCase), UnitPricePattern);
 
             var valorTotal = ParseFromLines(linhas, l => l.Contains("TOTAL", StringComparison.OrdinalIgnoreCase)
                 && !l.Contains("SUBTOTAL", StringComparison.OrdinalIgnoreCase), MoneyPattern)

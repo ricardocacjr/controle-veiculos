@@ -19,4 +19,6 @@ public record UsageRecordDetailDto(
     UsageRecordStatus Status,
     IReadOnlyList<VehiclePhotoDto> Fotos,
     IReadOnlyList<VoiceNoteDto> NotasDeVoz,
-    IReadOnlyList<FuelEntryDto> Abastecimentos);
+    IReadOnlyList<FuelEntryDto> Abastecimentos,
+    double? LatitudeInicial = null,
+    double? LongitudeInicial = null);

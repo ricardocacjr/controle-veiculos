@@ -113,6 +113,8 @@ public class UsageRecordsController(
         };
 
         vehicle.Status = VehicleStatus.EmUso;
+        // Km da saída já é conhecido — referência pra próxima leitura de foto do painel.
+        vehicle.OdometroAtual = Math.Max(vehicle.OdometroAtual, request.OdometroInicial);
         vehicleRepository.Update(vehicle);
 
         await usageRepository.AddAsync(usage, ct);
@@ -132,14 +134,19 @@ public class UsageRecordsController(
     /// </summary>
     [HttpPost("ler-painel")]
     [Authorize(Roles = Roles.Motorista)]
-    public async Task<ActionResult<PainelReadingDto>> LerPainel(IFormFile file, [FromForm] double? latitude, [FromForm] double? longitude, CancellationToken ct)
+    public async Task<ActionResult<PainelReadingDto>> LerPainel(
+        IFormFile file, [FromForm] double? latitude, [FromForm] double? longitude,
+        [FromForm] int? kmReferencia, [FromForm] Guid? veiculoId, CancellationToken ct)
     {
         if (file.Length == 0)
             return BadRequest("Arquivo vazio.");
 
+        if (kmReferencia is null && veiculoId is { } idVeiculo)
+            kmReferencia = (await vehicleRepository.GetByIdAsync(idVeiculo, ct))?.OdometroAtual;
+
         int? odometro;
         await using (var stream = file.OpenReadStream())
-            odometro = await odometerOcrService.ExtractOdometerAsync(stream, ct);
+            odometro = await odometerOcrService.ExtractOdometerAsync(stream, kmReferencia, ct);
 
         string? endereco = null;
         if (latitude is { } lat && longitude is { } lon)
@@ -159,6 +166,8 @@ public class UsageRecordsController(
             return BadRequest("Este uso já foi finalizado.");
         if (request.OdometroFinal < usage.OdometroInicial)
             return BadRequest("Odômetro final não pode ser menor que o inicial.");
+        if (!usage.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
+            return BadRequest("Tire a foto do painel antes de finalizar.");
 
         usage.OdometroFinal = request.OdometroFinal;
         usage.FinalizadoEm = DateTimeOffset.UtcNow;
@@ -200,7 +209,7 @@ public class UsageRecordsController(
         if (tipo is VehiclePhotoType.OdometroInicial or VehiclePhotoType.OdometroFinal)
         {
             await using var stream = System.IO.File.OpenRead(fullPath);
-            photo.OdometroLido = await odometerOcrService.ExtractOdometerAsync(stream, ct);
+            photo.OdometroLido = await odometerOcrService.ExtractOdometerAsync(stream, UltimoKmConhecido(usage), ct);
         }
 
         await usageRepository.AddPhotoAsync(photo, ct);
@@ -248,6 +257,10 @@ public class UsageRecordsController(
         var usage = await usageRepository.GetWithDetailsAsync(id, ct);
         if (usage is null || !await CanAccessAsync(usage, ct))
             return NotFound();
+        if (request.Litros <= 0 || request.ValorTotal <= 0)
+            return BadRequest("Informe os litros e o valor do abastecimento.");
+        if (request.Odometro < usage.OdometroInicial)
+            return BadRequest($"O km do abastecimento ({request.Odometro:N0}) é menor que o da saída ({usage.OdometroInicial:N0}).");
 
         var entry = new FuelEntry
         {
@@ -256,12 +269,14 @@ public class UsageRecordsController(
             ValorTotal = request.ValorTotal,
             Odometro = request.Odometro,
             ValorPorLitro = request.ValorPorLitro,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
         };
 
         await usageRepository.AddFuelEntryAsync(entry, ct);
         await usageRepository.SaveChangesAsync(ct);
 
-        return Ok(new FuelEntryDto(entry.Id, entry.Litros, entry.ValorTotal, entry.ValorPorLitro, entry.Odometro, entry.CreatedAt));
+        return Ok(ToFuelDto(entry));
     }
 
     /// <summary>
@@ -337,5 +352,13 @@ public class UsageRecordsController(
         u.IniciadoEm, u.FinalizadoEm, u.Status,
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
-        u.Abastecimentos.Select(a => new FuelEntryDto(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt)).ToList());
+        u.Abastecimentos.OrderBy(a => a.CreatedAt).Select(ToFuelDto).ToList(),
+        u.LatitudeInicial, u.LongitudeInicial);
+
+    private static FuelEntryDto ToFuelDto(FuelEntry a) =>
+        new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude);
+
+    /// <summary>Referência pra leitura do odômetro durante o uso: o maior km já registrado nele.</summary>
+    private static int UltimoKmConhecido(UsageRecord u) =>
+        u.Abastecimentos.Select(a => a.Odometro).Append(u.OdometroInicial).Max();
 }

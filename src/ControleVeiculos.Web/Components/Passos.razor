@@ -1,0 +1,12 @@
+<div class="steps" aria-label="Passo @Atual de @Total">
+    @for (var i = 1; i <= Total; i++)
+    {
+        <span class="@(i <= Atual ? "done" : "")"></span>
+    }
+</div>
+<div class="step-label">Passo @Atual de @Total</div>
+
+@code {
+    [Parameter] public int Atual { get; set; }
+    [Parameter] public int Total { get; set; }
+}

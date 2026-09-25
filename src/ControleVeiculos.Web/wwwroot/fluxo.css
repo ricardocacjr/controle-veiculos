@@ -1,0 +1,529 @@
+/* Fluxo simplificado do motorista: perfis, PIN, passo a passo, ações grandes. */
+
+/* ---------- Avatar (foto ou iniciais) ---------- */
+
+.avatar-circle {
+    position: relative;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    overflow: hidden;
+    color: #fff;
+    font-weight: 800;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+    .avatar-circle img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+/* ---------- Escolha de perfil (estilo Netflix) ---------- */
+
+.profile-title {
+    color: #fff;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 800;
+    margin: 8px 0 24px;
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 14px;
+    max-width: 420px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+@media (min-width: 560px) {
+    .profile-grid { grid-template-columns: repeat(3, 1fr); max-width: 520px; }
+}
+
+.profile-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    background: none;
+    color: #fff;
+    padding: 6px;
+    border-radius: 18px;
+}
+
+    .profile-tile .avatar-circle {
+        width: 104px;
+        height: 104px;
+        border-radius: 26px;
+        font-size: 36px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
+        border: 3px solid transparent;
+        transition: transform .12s ease, border-color .12s ease;
+    }
+
+    .profile-tile:active .avatar-circle,
+    .profile-tile:focus-visible .avatar-circle { transform: scale(.95); border-color: #fff; }
+
+    .profile-tile .profile-name { font-weight: 700; font-size: 16px; letter-spacing: .02em; }
+
+.auth-link {
+    display: block;
+    margin: 28px auto 0;
+    border: 0;
+    background: none;
+    color: rgba(255, 255, 255, .6);
+    font-size: 14px;
+    text-decoration: underline;
+}
+
+.auth-loading { color: rgba(255, 255, 255, .8); }
+
+/* ---------- PIN ---------- */
+
+.pin-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #fff;
+    max-width: 340px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+    .pin-screen .avatar-circle {
+        width: 84px;
+        height: 84px;
+        border-radius: 22px;
+        font-size: 30px;
+        margin-bottom: 12px;
+    }
+
+.pin-title { font-size: 21px; font-weight: 800; text-align: center; margin: 0; }
+.pin-sub { color: rgba(255, 255, 255, .7); text-align: center; margin: 6px 0 0; font-size: 15px; }
+
+.pin-dots {
+    display: flex;
+    gap: 14px;
+    margin: 26px 0 10px;
+}
+
+.pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .7);
+    transition: background .1s ease;
+}
+
+    .pin-dot.filled { background: #fff; border-color: #fff; }
+
+.pin-dots.shake { animation: shake .4s ease; }
+
+@keyframes shake {
+    20%, 60% { transform: translateX(-10px); }
+    40%, 80% { transform: translateX(10px); }
+}
+
+.pin-error {
+    min-height: 22px;
+    color: #fca5a5;
+    font-weight: 600;
+    font-size: 14.5px;
+    text-align: center;
+}
+
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 76px);
+    gap: 16px 26px;
+    margin-top: 14px;
+}
+
+.pin-key {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+    font-size: 30px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+}
+
+    .pin-key:active { background: rgba(255, 255, 255, .3); }
+    .pin-key.ghost { background: none; }
+    .pin-key:disabled { opacity: .4; }
+
+.pin-links {
+    display: flex;
+    gap: 22px;
+    margin-top: 22px;
+}
+
+    .pin-links button {
+        border: 0;
+        background: none;
+        color: rgba(255, 255, 255, .75);
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+/* ---------- Passo a passo ---------- */
+
+.steps {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 18px;
+}
+
+    .steps span {
+        flex: 1;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--border);
+    }
+
+        .steps span.done { background: var(--primary); }
+
+.step-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 4px;
+}
+
+.step-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    margin: 0 0 18px;
+    line-height: 1.15;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 6px 0;
+    margin-bottom: 8px;
+}
+
+/* Botões grandes de escolha (empresa, motivo) */
+.choice-list { display: grid; gap: 12px; }
+
+.choice-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 72px;
+    padding: 14px 18px;
+    border: 2px solid transparent;
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font-size: 19px;
+    font-weight: 700;
+    text-align: left;
+}
+
+    .choice-btn:active { transform: scale(.98); }
+    .choice-btn.selected { border-color: var(--primary); background: var(--primary-50); }
+
+    .choice-btn .choice-icon {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 800;
+        flex-shrink: 0;
+    }
+
+    .choice-btn .choice-arrow { margin-left: auto; color: var(--muted); }
+
+    .choice-btn.outline {
+        background: transparent;
+        box-shadow: none;
+        border: 2px dashed var(--border);
+        color: var(--muted);
+    }
+
+/* ---------- Grandes ações durante o uso ---------- */
+
+.big-actions { display: grid; gap: 14px; margin-top: 6px; }
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    min-height: 88px;
+    padding: 16px 18px;
+    border: 0;
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    text-align: left;
+}
+
+    .action-btn:active { transform: scale(.98); }
+
+    .action-btn .action-icon {
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        flex-shrink: 0;
+    }
+
+    .action-btn .action-title { display: block; font-size: 20px; font-weight: 800; }
+    .action-btn .action-sub { display: block; font-size: 14px; color: var(--muted); }
+
+    .action-btn.primary { background: var(--success); color: #fff; }
+        .action-btn.primary .action-sub { color: rgba(255, 255, 255, .85); }
+        .action-btn.primary .action-icon { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* ---------- Foto grande (câmera) ---------- */
+
+.camera-cta {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 220px;
+    padding: 24px;
+    border: 3px dashed #bfd0f7;
+    border-radius: 24px;
+    background: var(--primary-50);
+    color: var(--text);
+    text-align: center;
+    cursor: pointer;
+    margin: 0;
+}
+
+    .camera-cta:active { transform: scale(.99); }
+    .camera-cta.is-busy { pointer-events: none; }
+
+    .camera-cta .camera-icon {
+        display: grid;
+        place-items: center;
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, .35);
+    }
+
+    .camera-cta .camera-title { font-size: 21px; font-weight: 800; }
+    .camera-cta .camera-sub { font-size: 15px; color: var(--muted); max-width: 260px; }
+
+    .camera-cta.tone-fuel { border-color: #f7d79b; background: var(--accent-50); }
+        .camera-cta.tone-fuel .camera-icon { background: var(--accent); box-shadow: 0 10px 24px rgba(245, 158, 11, .35); }
+
+    .camera-cta.tone-danger { border-color: #f5b5b5; background: var(--danger-50); }
+        .camera-cta.tone-danger .camera-icon { background: var(--danger); box-shadow: 0 10px 24px rgba(220, 38, 38, .3); }
+
+    .camera-cta.compact { min-height: 0; flex-direction: row; justify-content: flex-start; text-align: left; padding: 14px 16px; border-width: 2px; }
+        .camera-cta.compact .camera-icon { width: 52px; height: 52px; box-shadow: none; }
+        .camera-cta.compact .camera-title { font-size: 16.5px; }
+
+.camera-cta .spinner { width: 34px; height: 34px; border-width: 3.5px; }
+
+/* ---------- Leitura / resumo ---------- */
+
+.km-display {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1;
+}
+
+    .km-display small { font-size: 20px; color: var(--muted); font-weight: 700; }
+
+.reading-card {
+    background: var(--surface);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+}
+
+    .reading-card + .reading-card { margin-top: 12px; }
+
+.reading-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+}
+
+.km-input {
+    font-size: 30px !important;
+    font-weight: 800;
+    min-height: 64px !important;
+    text-align: center;
+}
+
+.summary-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+    .summary-row:last-child { border-bottom: 0; }
+    .summary-row .summary-icon { color: var(--muted); flex-shrink: 0; }
+    .summary-row .summary-key { font-size: 13px; color: var(--muted); display: block; }
+    .summary-row .summary-value { font-size: 17px; font-weight: 700; display: block; }
+
+.map-mini {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-top: 10px;
+    background: var(--bg);
+}
+
+    .map-mini iframe { display: block; width: 100%; border: 0; }
+
+    .map-mini a {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px;
+        font-weight: 700;
+        font-size: 14.5px;
+        text-decoration: none;
+        background: var(--surface);
+    }
+
+.place-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.btn-go {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+    min-height: 64px;
+    font-size: 20px;
+}
+
+    .btn-go:hover, .btn-go:active, .btn-go:focus { background: #15803d !important; border-color: #15803d !important; color: #fff !important; }
+
+.btn-danger.btn-app, .btn-primary.btn-app.big { min-height: 64px; font-size: 20px; }
+
+.success-screen {
+    text-align: center;
+    padding: 40px 12px;
+}
+
+    .success-screen .success-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: var(--success-50);
+        color: var(--success);
+        margin-bottom: 18px;
+        animation: pop .35s ease;
+    }
+
+    .success-screen h1 { font-size: 26px; font-weight: 800; margin: 0 0 6px; }
+    .success-screen p { color: var(--muted); font-size: 16px; }
+
+@keyframes pop {
+    0% { transform: scale(.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.link-discreto {
+    display: block;
+    text-align: center;
+    margin-top: 26px;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+}
+
+/* ---------- Gravador ---------- */
+
+.rec-btn {
+    display: grid;
+    place-items: center;
+    width: 120px;
+    height: 120px;
+    margin: 10px auto;
+    border-radius: 50%;
+    border: 0;
+    background: var(--violet);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(124, 58, 237, .35);
+}
+
+    .rec-btn.recording {
+        background: var(--danger);
+        animation: pulse 1.2s ease infinite;
+    }
+
+    .rec-btn:disabled { opacity: .6; }
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .5); }
+    100% { box-shadow: 0 0 0 26px rgba(220, 38, 38, 0); }
+}
+
+.rec-timer { text-align: center; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Topbar com avatar */
+.app-topbar .avatar-circle { width: 36px; height: 36px; font-size: 14px; }
+
+.app-admin-link {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .1);
+    white-space: nowrap;
+}
+
+/* Sem abas no rodapé (motorista) o conteúdo não precisa do espaço extra embaixo. */
+.app-main.sem-abas { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }

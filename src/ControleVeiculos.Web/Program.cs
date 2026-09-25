@@ -1,7 +1,14 @@
+using System.Globalization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 using ControleVeiculos.Web.Components;
 using ControleVeiculos.Web.Services;
+
+// O container do Render roda com cultura invariante (inglês): sem isso "80.007 km" vira "80,007 km"
+// e "R$ 5,49" vira "R$ 5.49". O painel é só pt-BR. (Horário: ver Rotulos.Local — fixo em Brasília.)
+var ptBr = new CultureInfo("pt-BR");
+CultureInfo.DefaultThreadCurrentCulture = ptBr;
+CultureInfo.DefaultThreadCurrentUICulture = ptBr;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +30,8 @@ builder.Services.Configure<HubOptions>(options =>
 });
 
 builder.Services.AddScoped<AuthState>();
+builder.Services.AddScoped<Localizacao>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Base").Get<BaseOperacional>() ?? new BaseOperacional());
 builder.Services.AddHttpClient<ControleVeiculosApiClient>(client =>
 {
     var apiBaseUrl = builder.Configuration["ApiBaseUrl"]

@@ -1,0 +1,171 @@
+@using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.UsageRecords
+@implements IDisposable
+@inject ControleVeiculosApiClient Api
+@inject Localizacao Localizacao
+@inject IJSRuntime JS
+
+<button type="button" class="back-link" @onclick="FecharAsync"><Icon Name="chevron-left" Size="18" /> Voltar</button>
+<h1 class="step-title">O que aconteceu?</h1>
+
+<CameraGrande Titulo="Tirar foto do problema" Subtitulo="Batida, arranhão, pneu, luz no painel..."
+              Tom="tone-danger" Icone="alert" TextoOcupado="Enviando..." Ocupado="@_enviandoFoto" OnFoto="EnviarFotoAsync" />
+
+<div class="section-title">Ou conte falando</div>
+<div class="reading-card text-center">
+    <button type="button" class="rec-btn @(_gravando ? "recording" : "")" disabled="@_enviandoAudio" @onclick="AlternarGravacaoAsync"
+            title="@(_gravando ? "Parar" : "Gravar")">
+        @if (_enviandoAudio)
+        {
+            <span class="spinner" style="width:34px;height:34px"></span>
+        }
+        else if (_gravando)
+        {
+            <span style="width:34px;height:34px;border-radius:6px;background:#fff;display:block"></span>
+        }
+        else
+        {
+            <Icon Name="mic" Size="46" />
+        }
+    </button>
+    @if (_gravando)
+    {
+        <div class="rec-timer">0:@_segundos.ToString("00")</div>
+        <div class="muted">Falando... toque no quadrado para terminar</div>
+    }
+    else if (_enviandoAudio)
+    {
+        <div class="muted">Transformando a fala em texto...</div>
+    }
+    else
+    {
+        <div class="muted">Toque no microfone, fale e toque de novo para terminar (até 55 segundos).</div>
+    }
+</div>
+
+<Mensagens Erro="@_erro" Sucesso="@_ok" />
+
+@if (_ok is not null)
+{
+    <button type="button" class="btn btn-primary btn-app big mt-2" @onclick="ConcluirAsync">Pronto</button>
+}
+
+@code {
+    private const int LimiteSegundos = 55;
+
+    [Parameter, EditorRequired] public UsageRecordDto Uso { get; set; } = default!;
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback<string> OnConcluido { get; set; }
+
+    private bool _enviandoFoto;
+    private bool _enviandoAudio;
+    private bool _gravando;
+    private int _segundos;
+    private string? _erro;
+    private string? _ok;
+    private readonly List<string> _registros = [];
+    private System.Threading.Timer? _cronometro;
+
+    private async Task EnviarFotoAsync(IBrowserFile foto)
+    {
+        _enviandoFoto = true;
+        _erro = null;
+        try
+        {
+            using var imagem = await Localizacao.LerArquivoAsync(foto);
+            await Api.UploadFotoAsync(Uso.Id, imagem, "problema.jpg", "image/jpeg", VehiclePhotoType.Avaria, null);
+            _registros.Add("foto");
+            _ok = "📷 Foto do problema enviada. Quer contar mais? Grave um áudio abaixo.";
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erro = $"Não consegui enviar a foto: {ex.Message}";
+        }
+        finally
+        {
+            _enviandoFoto = false;
+        }
+    }
+
+    private async Task AlternarGravacaoAsync()
+    {
+        if (_gravando)
+        {
+            await PararEEnviarAsync();
+            return;
+        }
+
+        _erro = null;
+        var falha = await JS.InvokeAsync<string?>("cvGravador.iniciar");
+        if (falha is not null)
+        {
+            _erro = falha;
+            return;
+        }
+
+        _gravando = true;
+        _segundos = 0;
+        _cronometro = new System.Threading.Timer(_ => InvokeAsync(async () =>
+        {
+            if (!_gravando) return;
+            _segundos++;
+            if (_segundos >= LimiteSegundos)
+                await PararEEnviarAsync();
+            StateHasChanged();
+        }), null, 1000, 1000);
+    }
+
+    private async Task PararEEnviarAsync()
+    {
+        _gravando = false;
+        _cronometro?.Dispose();
+        _cronometro = null;
+        _enviandoAudio = true;
+        StateHasChanged();
+        try
+        {
+            var base64 = await JS.InvokeAsync<string?>("cvGravador.parar");
+            if (base64 is null)
+            {
+                _erro = "Não captei nenhum som. Tente de novo.";
+                return;
+            }
+
+            using var audio = new MemoryStream(Convert.FromBase64String(base64));
+            var nota = await Api.UploadNotaDeVozAsync(Uso.Id, audio, "nota.wav", "audio/wav");
+            _registros.Add("audio");
+            _ok = string.IsNullOrWhiteSpace(nota?.TranscricaoTexto)
+                ? "🎤 Áudio enviado (não consegui transformar em texto, mas o áudio foi salvo)."
+                : $"🎤 Entendi: “{nota.TranscricaoTexto}”";
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JSException)
+        {
+            _erro = $"Não consegui enviar o áudio: {ex.Message}";
+        }
+        finally
+        {
+            _enviandoAudio = false;
+        }
+    }
+
+    private async Task FecharAsync()
+    {
+        if (_gravando)
+        {
+            _gravando = false;
+            _cronometro?.Dispose();
+            await JS.InvokeAsync<string?>("cvGravador.parar");
+        }
+
+        if (_registros.Count > 0)
+            await ConcluirAsync();
+        else
+            await OnFechar.InvokeAsync();
+    }
+
+    private Task ConcluirAsync() => OnConcluido.InvokeAsync("⚠️ Problema registrado. O administrador vai ver as fotos e áudios.");
+
+    public void Dispose() => _cronometro?.Dispose();
+}

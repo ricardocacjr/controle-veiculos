@@ -1,0 +1,181 @@
+@using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.UsageRecords
+@inject ControleVeiculosApiClient Api
+@inject Localizacao Localizacao
+@inject BaseOperacional Base
+@inject IJSRuntime JS
+
+<button type="button" class="back-link" @onclick="Voltar"><Icon Name="chevron-left" Size="18" /> @(_passo == 1 ? "Cancelar" : "Voltar")</button>
+<Passos Atual="_passo" Total="2" />
+
+@if (_passo == 1)
+{
+    <h1 class="step-title">Foto do painel na chegada</h1>
+    @if (!_fotoLida)
+    {
+        <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. Essa foto é obrigatória para finalizar."
+                      TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+        <Mensagens Erro="@_erro" />
+    }
+    else
+    {
+        <div class="reading-card">
+            <div class="reading-label">Km do painel</div>
+            @if (_km is null || _corrigindoKm)
+            {
+                @if (_km is null && !_corrigindoKm)
+                {
+                    <div class="notice notice-info">Não consegui ler o número. Digite o km:</div>
+                }
+                <input class="form-control km-input" type="number" inputmode="numeric" @bind="_km" @bind:event="oninput" />
+            }
+            else
+            {
+                <div class="d-flex align-items-end justify-content-between gap-2">
+                    <div class="km-display">@_km.Value.ToString("N0") <small>km</small></div>
+                    <button type="button" class="btn btn-soft" @onclick="() => _corrigindoKm = true"><Icon Name="pencil" Size="16" /> Corrigir</button>
+                </div>
+            }
+            @if (AvisoKm is { } aviso)
+            {
+                <div class="notice notice-error mt-3 mb-0">@aviso</div>
+            }
+        </div>
+
+        <div class="reading-card">
+            <div class="reading-label">Onde você está</div>
+            @if (_posicao is { Ok: true } p && !Base.EstaNaBase(p.Lat!.Value, p.Lng!.Value))
+            {
+                <div class="notice notice-error">
+                    Você está a @DistanciaTexto(p) da @Base.Nome. Se já chegou, pode finalizar mesmo assim.
+                </div>
+            }
+            <LocalLido NaBase="@(_posicao is { Ok: true } q && Base.EstaNaBase(q.Lat!.Value, q.Lng!.Value))" Posicao="_posicao" />
+        </div>
+
+        <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null || _km < Uso.OdometroInicial)" @onclick="() => _passo = 2">
+            Continuar <Icon Name="chevron-right" Size="20" />
+        </button>
+        <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _fotoLida = false"><Icon Name="camera" Size="18" /> Tirar outra foto</button>
+    }
+}
+else
+{
+    <h1 class="step-title">Finalizar o uso?</h1>
+    <div class="reading-card">
+        <div class="summary-row">
+            <Icon Name="car" Class="summary-icon" />
+            <span><span class="summary-key">Veículo</span><span class="summary-value">@Uso.VeiculoPlaca</span></span>
+        </div>
+        <div class="summary-row">
+            <Icon Name="gauge" Class="summary-icon" />
+            <span><span class="summary-key">Km</span><span class="summary-value">@Uso.OdometroInicial.ToString("N0") → @_km?.ToString("N0")</span></span>
+        </div>
+        <div class="summary-row">
+            <Icon Name="flag" Class="summary-icon" />
+            <span><span class="summary-key">Você rodou</span><span class="summary-value">@((_km - Uso.OdometroInicial)?.ToString("N0")) km</span></span>
+        </div>
+        <div class="summary-row">
+            <Icon Name="clock" Class="summary-icon" />
+            <span><span class="summary-key">Tempo fora</span><span class="summary-value">@Rotulos.Duracao(Uso.IniciadoEm).Replace("há ", "")</span></span>
+        </div>
+    </div>
+    <Mensagens Erro="@_erro" />
+    <button type="button" class="btn btn-go btn-app mt-3" disabled="@_salvando" @onclick="FinalizarAsync">
+        @if (_salvando)
+        {
+            <span class="spinner"></span><span>Finalizando...</span>
+        }
+        else
+        {
+            <Icon Name="flag" Size="24" /><span>Finalizar uso</span>
+        }
+    </button>
+}
+
+@code {
+    [Parameter, EditorRequired] public UsageRecordDto Uso { get; set; } = default!;
+    [Parameter] public UsageRecordDetailDto? Detalhe { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback<string> OnFinalizado { get; set; }
+
+    private int _passo = 1;
+    private bool _lendo;
+    private bool _salvando;
+    private bool _fotoLida;
+    private bool _corrigindoKm;
+    private int? _km;
+    private Posicao? _posicao;
+    private string? _erro;
+
+    private string? AvisoKm =>
+        _km is { } km && km < Uso.OdometroInicial
+            ? $"O km final não pode ser menor que o da saída ({Uso.OdometroInicial:N0} km)."
+            : _km is { } km2 && km2 - Uso.OdometroInicial > 1000
+                ? $"São {km2 - Uso.OdometroInicial:N0} km rodados — confira se o número está certo."
+                : null;
+
+    private string DistanciaTexto(Posicao p)
+    {
+        var metros = Base.DistanciaMetros(p.Lat!.Value, p.Lng!.Value);
+        return metros >= 1000 ? $"{metros / 1000:N1} km" : $"{metros:N0} m";
+    }
+
+    private async Task Voltar()
+    {
+        if (_passo == 1)
+            await OnFechar.InvokeAsync();
+        else
+            _passo = 1;
+    }
+
+    private async Task LerPainelAsync(IBrowserFile foto)
+    {
+        _lendo = true;
+        _erro = null;
+        try
+        {
+            var posicao = Localizacao.ObterAsync();
+            using var imagem = await Localizacao.LerArquivoAsync(foto);
+            // Sobe como foto do uso (tipo OdometroFinal): o servidor exige essa foto pra finalizar
+            // e já lê o km usando o km de saída como referência.
+            var enviada = await Api.UploadFotoAsync(Uso.Id, imagem, "painel-chegada.jpg", "image/jpeg", VehiclePhotoType.OdometroFinal, null);
+            _km = enviada?.OdometroLido;
+            _posicao = await posicao;
+            _fotoLida = true;
+            _corrigindoKm = false;
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erro = $"Não consegui enviar a foto: {ex.Message}";
+        }
+        finally
+        {
+            _lendo = false;
+        }
+    }
+
+    private async Task FinalizarAsync()
+    {
+        if (_km is null)
+            return;
+
+        _salvando = true;
+        _erro = null;
+        try
+        {
+            await Api.FinalizarUsoAsync(Uso.Id, _km.Value);
+            await JS.InvokeVoidAsync("cvVibrar", new[] { 80, 60, 80 });
+            await OnFinalizado.InvokeAsync($"Você rodou {_km.Value - Uso.OdometroInicial:N0} km.");
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = $"Não foi possível finalizar: {ex.Message}";
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

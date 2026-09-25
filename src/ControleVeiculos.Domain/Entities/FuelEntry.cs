@@ -17,4 +17,8 @@ public class FuelEntry : BaseEntity, ITenantScoped
     /// possível (ver <see cref="ControleVeiculos.Application.Interfaces.IFuelReceiptOcrService"/>),
     /// senão calculável a partir de ValorTotal/Litros.</summary>
     public decimal? ValorPorLitro { get; set; }
+
+    /// <summary>Onde abasteceu (GPS do celular na hora da foto) — mostrado como ponto no mapa.</summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
 }

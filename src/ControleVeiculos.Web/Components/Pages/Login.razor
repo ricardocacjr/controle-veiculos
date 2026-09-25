@@ -1,42 +1,47 @@
 @page "/login"
+@using ControleVeiculos.Shared.Auth
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Entrar · Controle de Veículos</PageTitle>
 
-<div class="auth-hero">
-    <div class="app-brand-logo"><Icon Name="car" Size="34" /></div>
-    <h1>Controle de Veículos</h1>
-    <p>Registro de uso da frota</p>
-</div>
+@if (_perfilEscolhido is { } perfil)
+{
+    <div class="pin-screen">
+        <Avatar UserId="perfil.UserId" Nome="@perfil.Nome" TemFoto="perfil.TemFoto" Versao="@perfil.FotoVersao" />
+        <h1 class="pin-title">Olá, @PrimeiroNome(perfil.Nome)!</h1>
+        <p class="pin-sub">@(perfil.PrecisaDefinirPin ? "Digite o PIN que o administrador te passou" : "Digite seu PIN de 6 números")</p>
 
-<div class="auth-card">
-    @if (!_mostrarCadastro)
-    {
-        <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+        <PinPad Erro="@_erro" Ocupado="@_entrando" OnCompleto="EntrarComPinAsync" />
+
+        <div class="pin-links">
+            <button type="button" @onclick="Voltar">← Trocar pessoa</button>
+            <button type="button" @onclick="() => _erro = EsqueciPin">Esqueci o PIN</button>
+        </div>
+    </div>
+}
+else if (_modoAdmin)
+{
+    <div class="auth-hero">
+        <div class="app-brand-logo"><Icon Name="lock" Size="30" /></div>
+        <h1>Administração</h1>
+        <p>Acesso com e-mail e senha</p>
+    </div>
+    <div class="auth-card">
+        <EditForm Model="_admin" OnValidSubmit="EntrarAdminAsync">
             <div class="field">
-                <label>Usuário ou e-mail</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="user" Size="18" /></span>
-                    <InputText class="form-control" @bind-Value="_model.Login" autocapitalize="characters" autocomplete="username" placeholder="Ex.: DANI" />
-                </div>
+                <label>E-mail ou usuário</label>
+                <InputText class="form-control" @bind-Value="_admin.Login" autocomplete="username" />
             </div>
             <div class="field">
                 <label>Senha</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="lock" Size="18" /></span>
-                    <InputText class="form-control" type="password" @bind-Value="_model.Password" autocomplete="current-password" />
-                </div>
+                <InputText class="form-control" type="password" @bind-Value="_admin.Senha" autocomplete="current-password" />
             </div>
-
-            @if (_error is not null)
-            {
-                <div class="notice notice-error">@_error</div>
-            }
-
-            <button type="submit" class="btn btn-primary btn-app" disabled="@_loading">
-                @if (_loading)
+            <Mensagens Erro="@_erro" />
+            <button type="submit" class="btn btn-primary btn-app" disabled="@_entrando">
+                @if (_entrando)
                 {
                     <span class="spinner"></span><span>Entrando...</span>
                 }
@@ -46,131 +51,157 @@
                 }
             </button>
         </EditForm>
+        <button type="button" class="auth-switch" @onclick="Voltar">← Voltar</button>
+    </div>
+}
+else
+{
+    <h1 class="profile-title">Quem vai usar o carro?</h1>
 
-        <button type="button" class="auth-switch" @onclick="() => _mostrarCadastro = true">Não tem conta? Criar conta</button>
+    @if (_perfis is null)
+    {
+        <div class="loading-block auth-loading"><span class="spinner"></span> @(_demorando ? "Ligando o servidor, aguarde..." : "Carregando...")</div>
+    }
+    else if (_perfis.Count == 0)
+    {
+        <p class="text-center auth-loading">Nenhum motorista cadastrado.</p>
     }
     else
     {
-        <EditForm Model="_registerModel" OnValidSubmit="HandleRegisterAsync">
-            <div class="field">
-                <label>Nome completo</label>
-                <InputText class="form-control" @bind-Value="_registerModel.NomeCompleto" autocomplete="name" />
-            </div>
-            <div class="field">
-                <label>E-mail</label>
-                <InputText class="form-control" type="email" @bind-Value="_registerModel.Email" autocomplete="email" />
-            </div>
-            <div class="field">
-                <label>Senha</label>
-                <InputText class="form-control" type="password" @bind-Value="_registerModel.Password" autocomplete="new-password" />
-                <div class="field-hint">Mínimo de 8 caracteres, com letra e número.</div>
-            </div>
-            <div class="field">
-                <label>Papel</label>
-                <InputSelect class="form-select" @bind-Value="_registerModel.Role">
-                    <option value="Motorista">Motorista</option>
-                    <option value="Gestor">Gestor</option>
-                    <option value="Admin">Admin</option>
-                </InputSelect>
-            </div>
-
-            @if (_registerError is not null)
+        <div class="profile-grid">
+            @foreach (var p in _perfis)
             {
-                <div class="notice notice-error">@_registerError</div>
+                <button type="button" class="profile-tile" @onclick="() => Escolher(p)">
+                    <Avatar UserId="p.UserId" Nome="@p.Nome" TemFoto="p.TemFoto" Versao="@p.FotoVersao" />
+                    <span class="profile-name">@PrimeiroNome(p.Nome)</span>
+                </button>
             }
-
-            <button type="submit" class="btn btn-primary btn-app" disabled="@_registerLoading">
-                @if (_registerLoading)
-                {
-                    <span class="spinner"></span><span>Criando...</span>
-                }
-                else
-                {
-                    <span>Criar conta</span>
-                }
-            </button>
-        </EditForm>
-
-        <button type="button" class="auth-switch" @onclick="() => _mostrarCadastro = false">Já tenho conta · Entrar</button>
+        </div>
     }
-</div>
+
+    @if (_erroLista is not null)
+    {
+        <div class="notice notice-error mt-3" style="max-width:420px;margin:0 auto">@_erroLista</div>
+    }
+
+    <button type="button" class="auth-link" @onclick="() => { _modoAdmin = true; _erro = null; }">Acesso do administrador</button>
+}
 
 @code {
-    private readonly LoginModel _model = new();
-    private readonly RegisterModel _registerModel = new();
-    private string? _error;
-    private string? _registerError;
-    private bool _loading;
-    private bool _registerLoading;
-    private bool _mostrarCadastro;
+    private const string EsqueciPin = "Peça ao administrador (Ricardo) para criar um PIN novo pra você.";
 
-    private async Task HandleLoginAsync()
+    private List<PerfilDto>? _perfis;
+    private PerfilDto? _perfilEscolhido;
+    private bool _modoAdmin;
+    private bool _entrando;
+    private bool _demorando;
+    private string? _erro;
+    private string? _erroLista;
+    private readonly AdminModel _admin = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        _loading = true;
-        _error = null;
+        if (AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        _ = Task.Delay(2500).ContinueWith(_ => { _demorando = true; InvokeAsync(StateHasChanged); });
         try
         {
-            var result = await Api.LoginAsync(_model.Login.Trim(), _model.Password);
-            if (result is null)
-            {
-                _error = "Não foi possível autenticar.";
-                return;
-            }
-
-            AuthState.SignIn(result.Token, _model.Login.Trim());
-            Nav.NavigateTo("/");
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            _error = "Usuário ou senha inválidos.";
+            _perfis = (await Api.GetPerfisAsync()).ToList();
         }
         catch (HttpRequestException)
         {
-            _error = "O servidor está iniciando (isso acontece após um tempo sem uso) — aguarde alguns segundos e tente entrar de novo.";
-        }
-        finally
-        {
-            _loading = false;
+            _perfis = [];
+            _erroLista = "Não consegui carregar os perfis. Verifique a internet e abra o app de novo.";
         }
     }
 
-    private async Task HandleRegisterAsync()
+    private static string PrimeiroNome(string nome) =>
+        nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? nome;
+
+    private void Escolher(PerfilDto perfil)
     {
-        _registerLoading = true;
-        _registerError = null;
+        _perfilEscolhido = perfil;
+        _erro = null;
+    }
+
+    private void Voltar()
+    {
+        _perfilEscolhido = null;
+        _modoAdmin = false;
+        _erro = null;
+    }
+
+    private async Task EntrarComPinAsync(string pin)
+    {
+        if (_perfilEscolhido is null)
+            return;
+
+        _erro = null;
+        _entrando = true;
         try
         {
-            var result = await Api.RegisterAsync(_registerModel.NomeCompleto, _registerModel.Email, _registerModel.Password, _registerModel.Role);
-            if (result is null)
+            var resposta = await Api.LoginAsync(_perfilEscolhido.Login, pin);
+            if (resposta is null)
             {
-                _registerError = "Não foi possível cadastrar.";
+                _erro = "Não foi possível entrar.";
                 return;
             }
 
-            AuthState.SignIn(result.Token, _registerModel.Email);
-            Nav.NavigateTo("/");
+            await AuthState.EntrarAsync(resposta.Token, _perfilEscolhido.Login, resposta.PrecisaDefinirPin, pin);
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+            Nav.NavigateTo(resposta.PrecisaDefinirPin ? "/primeiro-acesso" : "/");
         }
         catch (HttpRequestException ex)
         {
-            _registerError = $"Não foi possível cadastrar: {ex.Message}";
+            _erro = MensagemErro(ex, "PIN incorreto. Tente de novo.");
         }
         finally
         {
-            _registerLoading = false;
+            _entrando = false;
         }
     }
 
-    private class LoginModel
+    private async Task EntrarAdminAsync()
     {
-        public string Login { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        _erro = null;
+        _entrando = true;
+        try
+        {
+            var login = _admin.Login.Trim();
+            var resposta = await Api.LoginAsync(login, _admin.Senha);
+            if (resposta is null)
+            {
+                _erro = "Não foi possível entrar.";
+                return;
+            }
+
+            await AuthState.EntrarAsync(resposta.Token, login, resposta.PrecisaDefinirPin, _admin.Senha);
+            Nav.NavigateTo(resposta.PrecisaDefinirPin ? "/primeiro-acesso" : "/");
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = MensagemErro(ex, "Usuário ou senha inválidos.");
+        }
+        finally
+        {
+            _entrando = false;
+        }
     }
 
-    private class RegisterModel
+    private static string MensagemErro(HttpRequestException ex, string credencialErrada) => ex.StatusCode switch
     {
-        public string NomeCompleto { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public string Role { get; set; } = "Motorista";
+        System.Net.HttpStatusCode.Unauthorized => credencialErrada,
+        System.Net.HttpStatusCode.Locked => ex.Message,
+        _ => "O servidor está iniciando — aguarde alguns segundos e tente de novo.",
+    };
+
+    private class AdminModel
+    {
+        public string Login { get; set; } = string.Empty;
+        public string Senha { get; set; } = string.Empty;
     }
 }

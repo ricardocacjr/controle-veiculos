@@ -1,0 +1,74 @@
+@inject IJSRuntime JS
+
+<div class="pin-dots @(_tremer ? "shake" : "")">
+    @for (var i = 0; i < Tamanho; i++)
+    {
+        <span class="pin-dot @(i < _digitos.Length ? "filled" : "")"></span>
+    }
+</div>
+<div class="pin-error">
+    @if (Ocupado)
+    {
+        <span class="d-inline-flex align-items-center gap-2" style="color:rgba(255,255,255,.8)"><span class="spinner" style="width:16px;height:16px"></span> Conferindo...</span>
+    }
+    else
+    {
+        @Erro
+    }
+</div>
+<div class="pin-pad">
+    @foreach (var n in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9" })
+    {
+        <button type="button" class="pin-key" disabled="@Ocupado" @onclick="() => DigitarAsync(n)">@n</button>
+    }
+    <span></span>
+    <button type="button" class="pin-key" disabled="@Ocupado" @onclick='() => DigitarAsync("0")'>0</button>
+    <button type="button" class="pin-key ghost" disabled="@Ocupado" title="Apagar" @onclick="Apagar"><Icon Name="chevron-left" Size="30" /></button>
+</div>
+
+@code {
+    [Parameter] public int Tamanho { get; set; } = 6;
+    [Parameter] public string? Erro { get; set; }
+    [Parameter] public bool Ocupado { get; set; }
+    [Parameter] public EventCallback<string> OnCompleto { get; set; }
+
+    private string _digitos = "";
+    private bool _tremer;
+    private string? _erroAnterior;
+
+    protected override void OnParametersSet()
+    {
+        // Erro novo vindo do pai (PIN errado) → limpa e treme os pontinhos.
+        if (!string.IsNullOrEmpty(Erro) && Erro != _erroAnterior)
+        {
+            _digitos = "";
+            _tremer = true;
+            _ = JS.InvokeVoidAsync("cvVibrar", 200).AsTask();
+        }
+        _erroAnterior = Erro;
+    }
+
+    private async Task DigitarAsync(string n)
+    {
+        _tremer = false;
+        if (_digitos.Length >= Tamanho)
+            return;
+
+        _digitos += n;
+        if (_digitos.Length == Tamanho)
+        {
+            var pin = _digitos;
+            await OnCompleto.InvokeAsync(pin);
+            _digitos = "";
+        }
+    }
+
+    private void Apagar()
+    {
+        _tremer = false;
+        if (_digitos.Length > 0)
+            _digitos = _digitos[..^1];
+    }
+
+    public void Limpar() => _digitos = "";
+}

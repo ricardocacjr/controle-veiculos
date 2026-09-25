@@ -10,18 +10,80 @@ namespace ControleVeiculos.Web.Services;
 
 public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 {
+    /// <summary>Lança <see cref="HttpRequestException"/> com StatusCode: 401 = PIN/senha errados,
+    /// 423 = bloqueado por tentativas, 5xx = servidor ainda acordando.</summary>
     public async Task<AuthResponse?> LoginAsync(string login, string password)
     {
         var response = await PostAsJsonWithColdStartRetryAsync("api/auth/login", new LoginRequest(login, password));
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithApiErrorAsync(response);
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
     }
 
-    public async Task<AuthResponse?> RegisterAsync(string nomeCompleto, string email, string password, string role)
+    public async Task<AuthResponse?> DefinirPinAsync(string pinAtual, string novoPin)
     {
-        var response = await PostAsJsonWithColdStartRetryAsync("api/auth/register", new RegisterRequest(nomeCompleto, email, password, role));
+        using var request = AuthorizedRequest(HttpMethod.Post, "api/auth/definir-pin");
+        request.Content = JsonContent.Create(new DefinirPinRequest(pinAtual, novoPin));
+        var response = await http.SendAsync(request);
         await EnsureSuccessWithApiErrorAsync(response);
         return await response.Content.ReadFromJsonAsync<AuthResponse>();
+    }
+
+    /// <summary>Tela de entrada (sem login): perfis com foto. Também sofre o "acordar" do Render.</summary>
+    public async Task<IReadOnlyList<PerfilDto>> GetPerfisAsync()
+    {
+        HttpResponseMessage? response = null;
+        for (var tentativa = 0; tentativa < 4; tentativa++)
+        {
+            if (tentativa > 0)
+                await Task.Delay(TimeSpan.FromSeconds(3));
+            response = await http.GetAsync("api/perfis");
+            if ((int)response.StatusCode is not (502 or 503 or 504))
+                break;
+        }
+
+        await EnsureSuccessWithApiErrorAsync(response!);
+        return await response!.Content.ReadFromJsonAsync<List<PerfilDto>>() ?? [];
+    }
+
+    /// <summary>URL absoluta da foto (o navegador busca direto da Api). <paramref name="versao"/> fura o cache após trocar a foto.</summary>
+    public string FotoPerfilUrl(Guid userId, string? versao = null) =>
+        new Uri(http.BaseAddress!, $"api/perfis/{userId}/foto{(versao is null ? "" : $"?v={versao}")}").ToString();
+
+    public async Task EnviarFotoPerfilAsync(Guid userId, Stream foto, string contentType)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/perfis/{userId}/foto");
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(foto);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(streamContent, "file", "perfil.jpg");
+        request.Content = content;
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
+    public async Task<PerfilDto?> CriarMotoristaAsync(CriarMotoristaRequest novo)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Post, "api/perfis");
+        request.Content = JsonContent.Create(novo);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<PerfilDto>();
+    }
+
+    public async Task RedefinirPinAsync(Guid userId, string pinTemporario)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Post, $"api/perfis/{userId}/redefinir-pin");
+        request.Content = JsonContent.Create(new RedefinirPinRequest(pinTemporario));
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
+    public async Task DefinirAdminAsync(Guid userId, bool admin)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/perfis/{userId}/admin");
+        request.Content = JsonContent.Create(new DefinirAdminRequest(admin));
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
     }
 
     // O plano free do Render "dorme" a Api depois de um tempo sem uso: a primeira requisição
@@ -172,7 +234,9 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<UsageRecordDto>();
     }
 
-    public async Task<PainelReadingDto?> LerPainelAsync(Stream fileStream, string fileName, string contentType, double? latitude, double? longitude)
+    public async Task<PainelReadingDto?> LerPainelAsync(
+        Stream fileStream, string fileName, string contentType, double? latitude, double? longitude,
+        int? kmReferencia = null, Guid? veiculoId = null)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, "api/usagerecords/ler-painel");
         using var content = new MultipartFormDataContent();
@@ -183,6 +247,10 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
             content.Add(new StringContent(latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "latitude");
         if (longitude is not null)
             content.Add(new StringContent(longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "longitude");
+        if (kmReferencia is not null)
+            content.Add(new StringContent(kmReferencia.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "kmReferencia");
+        if (veiculoId is not null)
+            content.Add(new StringContent(veiculoId.Value.ToString()), "veiculoId");
         httpRequest.Content = content;
 
         var response = await http.SendAsync(httpRequest);
@@ -238,7 +306,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<VehiclePhotoDto>();
     }
 
-    public async Task UploadNotaDeVozAsync(Guid usoId, Stream fileStream, string fileName, string contentType)
+    public async Task<VoiceNoteDto?> UploadNotaDeVozAsync(Guid usoId, Stream fileStream, string fileName, string contentType)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, $"api/usagerecords/{usoId}/notas-de-voz");
         using var content = new MultipartFormDataContent();
@@ -249,6 +317,7 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
 
         var response = await http.SendAsync(httpRequest);
         await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<VoiceNoteDto>();
     }
 
     public async Task AddAbastecimentoAsync(Guid usoId, AddFuelEntryRequest request)
@@ -292,6 +361,9 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
             // Corpo não era JSON de string/lista (ex: 401 sem corpo) — cai no fallback abaixo.
         }
 
-        throw new HttpRequestException(string.IsNullOrWhiteSpace(message) ? $"Erro {(int)response.StatusCode}." : message);
+        throw new HttpRequestException(
+            string.IsNullOrWhiteSpace(message) ? $"Erro {(int)response.StatusCode}." : message,
+            inner: null,
+            statusCode: response.StatusCode);
     }
 }

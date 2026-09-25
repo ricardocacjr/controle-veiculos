@@ -1,12 +1,8 @@
 @page "/motorista/uso"
-@using ControleVeiculos.Domain.Enums
-@using ControleVeiculos.Shared.Empresas
 @using ControleVeiculos.Shared.UsageRecords
-@using ControleVeiculos.Shared.Vehicles
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 
 <PageTitle>Uso do veículo</PageTitle>
 
@@ -15,281 +11,39 @@
     return;
 }
 
-@if (_loadError is not null)
+@if (_finalizado is not null)
 {
-    <h1 class="page-title">Uso do veículo</h1>
-    <div class="notice notice-error">@_loadError</div>
-    <button class="btn btn-soft btn-app" @onclick="ReloadAsync">Tentar de novo</button>
+    <div class="success-screen">
+        <div class="success-icon"><Icon Name="check" Size="52" StrokeWidth="2.6" /></div>
+        <h1>Uso finalizado!</h1>
+        <p>@_finalizado<br />Obrigado, @AuthState.PrimeiroNome.</p>
+        <button type="button" class="btn btn-primary btn-app big mt-3" @onclick="NovaSaidaAsync">Voltar ao início</button>
+    </div>
 }
-else if (_loading)
+else if (_carregando)
 {
     <div class="loading-block"><span class="spinner"></span> Carregando...</div>
 }
+else if (_erro is not null)
+{
+    <Mensagens Erro="@_erro" />
+    <button class="btn btn-soft btn-app" @onclick="CarregarAsync">Tentar de novo</button>
+}
 else if (_usoAtual is null)
 {
-    <h1 class="page-title">Nova saída</h1>
-    <p class="page-subtitle">Tire a foto do painel: o km e o endereço de origem são preenchidos sozinhos.</p>
-
-    <label class="photo-cta @(_lendoPainel ? "is-busy" : "")">
-        <InputFile class="file-hidden" OnChange="HandlePainelPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoPainel" />
-        <span class="tile-icon">
-            @if (_lendoPainel)
-            {
-                <span class="spinner"></span>
-            }
-            else
-            {
-                <Icon Name="camera" Size="26" />
-            }
-        </span>
-        <span>
-            <span class="tile-title d-block">@(_lendoPainel ? "Lendo a foto..." : "Fotografar o painel")</span>
-            <span class="tile-sub d-block">Preenche odômetro e origem pela localização</span>
-        </span>
-    </label>
-
-    <div class="mt-3">
-        <Mensagens Erro="@_actionError" Sucesso="@_actionStatus" />
-    </div>
-
-    <EditForm Model="_startForm" OnValidSubmit="HandleIniciarAsync">
-        <div class="section-title">Dados da saída</div>
-        <div class="card-app">
-            <div class="field">
-                <label>Veículo</label>
-                <InputSelect class="form-select" @bind-Value="_startForm.VeiculoId">
-                    <option value="">Selecione o veículo</option>
-                    @foreach (var v in _veiculosDisponiveis)
-                    {
-                        <option value="@v.Id">@v.Placa · @v.Marca @v.Modelo</option>
-                    }
-                </InputSelect>
-                @if (_veiculosDisponiveis.Count == 0)
-                {
-                    <div class="field-hint">Nenhum veículo disponível agora.</div>
-                }
-            </div>
-            <div class="field">
-                <label>Empresa</label>
-                <InputSelect class="form-select" @bind-Value="_startForm.EmpresaId">
-                    <option value="">Nenhuma</option>
-                    @foreach (var emp in _empresas)
-                    {
-                        <option value="@emp.Id">@emp.Nome</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="field">
-                <label>Finalidade</label>
-                <InputText class="form-control" @bind-Value="_startForm.Finalidade" list="motivos-datalist" autocomplete="off" placeholder="Ex.: Entrega de móveis" />
-                <datalist id="motivos-datalist">
-                    @foreach (var motivo in _motivos)
-                    {
-                        <option value="@motivo.Nome" />
-                    }
-                </datalist>
-                <div class="field-hint">Se não achar na lista, digite um motivo novo — ele fica salvo.</div>
-            </div>
-            <div class="field">
-                <label>Origem</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="pin" Size="18" /></span>
-                    <InputText class="form-control" @bind-Value="_startForm.Origem" placeholder="Preenchida pela foto" />
-                </div>
-            </div>
-            <div class="field">
-                <label>Destino</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="target" Size="18" /></span>
-                    <InputText class="form-control" @bind-Value="_startForm.Destino" placeholder="Opcional" />
-                </div>
-            </div>
-            <div class="field mb-0">
-                <label>Odômetro inicial (km)</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="gauge" Size="18" /></span>
-                    <InputNumber class="form-control" @bind-Value="_startForm.OdometroInicial" inputmode="numeric" />
-                </div>
-            </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-app mt-3" disabled="@_submitting">
-            @if (_submitting)
-            {
-                <span class="spinner"></span><span>Iniciando...</span>
-            }
-            else
-            {
-                <Icon Name="car" Size="20" /><span>Iniciar uso</span>
-            }
-        </button>
-    </EditForm>
+    <NovaSaida OnIniciado="IniciadoAsync" />
 }
 else
 {
-    <div class="status-hero">
-        <span class="live-dot">Em uso · @Duracao(_usoAtual.IniciadoEm)</span>
-        <div class="hero-plate">@_usoAtual.VeiculoPlaca</div>
-        <div class="hero-sub">@_usoAtual.Finalidade@(_usoAtual.EmpresaNome is null ? "" : $" · {_usoAtual.EmpresaNome}")</div>
-        <div class="hero-grid">
-            <div>
-                <div class="hero-label">Km inicial</div>
-                <div class="hero-value">@_usoAtual.OdometroInicial.ToString("N0") km</div>
-            </div>
-            <div>
-                <div class="hero-label">Saída</div>
-                <div class="hero-value">@_usoAtual.IniciadoEm.ToLocalTime().ToString("dd/MM HH:mm")</div>
-            </div>
-            <div class="hero-full">
-                <div class="hero-label">Origem</div>
-                <div class="hero-value">@(_usoAtual.Origem ?? "Não informada")</div>
-            </div>
-            @if (!string.IsNullOrWhiteSpace(_usoAtual.Destino))
-            {
-                <div class="hero-full">
-                    <div class="hero-label">Destino</div>
-                    <div class="hero-value">@_usoAtual.Destino</div>
-                </div>
-            }
-        </div>
-    </div>
-
-    @if (_detalhe is not null)
-    {
-        <div class="counters">
-            <span class="chip"><Icon Name="image" Size="14" /> @_detalhe.Fotos.Count foto(s)</span>
-            <span class="chip"><Icon Name="mic" Size="14" /> @_detalhe.NotasDeVoz.Count nota(s) de voz</span>
-            <span class="chip"><Icon Name="fuel" Size="14" /> @_detalhe.Abastecimentos.Count abastecimento(s)</span>
-        </div>
-    }
-
-    <div class="mt-3">
-        <Mensagens Erro="@_actionError" Sucesso="@_actionStatus" />
-    </div>
-
-    <div class="section-title">Durante o uso</div>
-    <div class="tile-grid">
-        <label class="tile @(_uploadingPhoto ? "is-busy" : "")">
-            <InputFile class="file-hidden" OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.OdometroFinal))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
-            <span class="tile-icon tone-primary"><Icon Name="gauge" /></span>
-            <span><span class="tile-title d-block">Foto do odômetro</span><span class="tile-sub d-block">Preenche o km final</span></span>
-        </label>
-        <label class="tile @(_uploadingPhoto ? "is-busy" : "")">
-            <InputFile class="file-hidden" OnChange="@(e => HandlePhotoSelectedAsync(e, VehiclePhotoType.Avaria))" accept="image/*" capture="environment" disabled="@_uploadingPhoto" />
-            <span class="tile-icon tone-danger"><Icon Name="alert" /></span>
-            <span><span class="tile-title d-block">Avaria</span><span class="tile-sub d-block">Foto de dano no veículo</span></span>
-        </label>
-        <label class="tile @(_uploadingVoice ? "is-busy" : "")">
-            <InputFile class="file-hidden" OnChange="HandleVoiceNoteSelectedAsync" accept="audio/*" capture="user" disabled="@_uploadingVoice" />
-            <span class="tile-icon tone-violet">
-                @if (_uploadingVoice)
-                {
-                    <span class="spinner"></span>
-                }
-                else
-                {
-                    <Icon Name="mic" />
-                }
-            </span>
-            <span><span class="tile-title d-block">Nota de voz</span><span class="tile-sub d-block">Grave e vira texto</span></span>
-        </label>
-        <button type="button" class="tile @(_mostrarAbastecimento ? "is-open" : "")" @onclick="() => _mostrarAbastecimento = !_mostrarAbastecimento">
-            <span class="tile-icon tone-accent"><Icon Name="fuel" /></span>
-            <span><span class="tile-title d-block">Abastecer</span><span class="tile-sub d-block">Foto do cupom ou nota</span></span>
-        </button>
-    </div>
-
-    @if (_mostrarAbastecimento)
-    {
-        <div class="section-title">Abastecimento</div>
-        <div class="card-app">
-            <label class="photo-cta @(_lendoComprovante ? "is-busy" : "") mb-3" style="border-color:#f7d79b;background:var(--accent-50)">
-                <InputFile class="file-hidden" OnChange="HandleReceiptPhotoSelectedAsync" accept="image/*" capture="environment" disabled="@_lendoComprovante" />
-                <span class="tile-icon" style="background:var(--accent)">
-                    @if (_lendoComprovante)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    else
-                    {
-                        <Icon Name="camera" Size="26" />
-                    }
-                </span>
-                <span>
-                    <span class="tile-title d-block">@(_lendoComprovante ? "Lendo o cupom..." : "Fotografar cupom ou nota")</span>
-                    <span class="tile-sub d-block">Preenche litros e valores</span>
-                </span>
-            </label>
-            <EditForm Model="_fuelForm" OnValidSubmit="HandleFuelAsync">
-                <div class="field-row">
-                    <div class="field">
-                        <label>Litros</label>
-                        <InputNumber class="form-control" @bind-Value="_fuelForm.Litros" inputmode="decimal" />
-                    </div>
-                    <div class="field">
-                        <label>Valor total (R$)</label>
-                        <InputNumber class="form-control" @bind-Value="_fuelForm.ValorTotal" inputmode="decimal" />
-                    </div>
-                    <div class="field">
-                        <label>Valor/litro (R$)</label>
-                        <InputNumber class="form-control" @bind-Value="_fuelForm.ValorPorLitro" inputmode="decimal" />
-                    </div>
-                    <div class="field">
-                        <label>Odômetro (km)</label>
-                        <InputNumber class="form-control" @bind-Value="_fuelForm.Odometro" inputmode="numeric" />
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-warning btn-app text-white" style="background:var(--accent);border-color:var(--accent)" disabled="@_submitting">
-                    <Icon Name="check" Size="20" /><span>Registrar abastecimento</span>
-                </button>
-            </EditForm>
-        </div>
-    }
-
-    <div class="section-title">Chegada</div>
-    <div class="card-app">
-        <EditForm Model="_finishForm" OnValidSubmit="HandleFinalizarAsync">
-            <div class="field">
-                <label>Odômetro final (km)</label>
-                <div class="input-with-icon">
-                    <span class="input-icon"><Icon Name="gauge" Size="18" /></span>
-                    <InputNumber class="form-control" @bind-Value="_finishForm.OdometroFinal" inputmode="numeric" />
-                </div>
-                <div class="field-hint">Dica: a "Foto do odômetro" acima preenche este campo.</div>
-            </div>
-            <button type="submit" class="btn btn-danger btn-app" disabled="@_submitting">
-                @if (_submitting)
-                {
-                    <span class="spinner"></span><span>Finalizando...</span>
-                }
-                else
-                {
-                    <Icon Name="flag" Size="20" /><span>Finalizar uso</span>
-                }
-            </button>
-        </EditForm>
-    </div>
+    <EmUso @key="_usoAtual.Id" Uso="_usoAtual" AvisoInicial="@_aviso" OnFinalizado="Finalizado" />
 }
 
 @code {
-    private bool _loading = true;
-    private bool _submitting;
-    private bool _uploadingPhoto;
-    private bool _uploadingVoice;
-    private bool _lendoPainel;
-    private bool _lendoComprovante;
-    private bool _mostrarAbastecimento;
-    private string? _loadError;
-    private string? _actionError;
-    private string? _actionStatus;
+    private bool _carregando = true;
+    private string? _erro;
+    private string? _aviso;
+    private string? _finalizado;
     private UsageRecordDto? _usoAtual;
-    private UsageRecordDetailDto? _detalhe;
-    private List<VehicleDto> _veiculosDisponiveis = [];
-    private List<EmpresaDto> _empresas = [];
-    private List<MotivoUsoDto> _motivos = [];
-    private readonly StartForm _startForm = new();
-    private FuelForm _fuelForm = new();
-    private readonly FinishForm _finishForm = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -298,310 +52,55 @@ else
             Nav.NavigateTo("/login");
             return;
         }
+        if (AuthState.PrecisaDefinirPin)
+        {
+            Nav.NavigateTo("/primeiro-acesso");
+            return;
+        }
 
-        await ReloadAsync();
+        await CarregarAsync();
     }
 
-    private static string Duracao(DateTimeOffset inicio)
+    private async Task CarregarAsync()
     {
-        var d = DateTimeOffset.UtcNow - inicio;
-        if (d.TotalMinutes < 1) return "agora";
-        if (d.TotalHours < 1) return $"há {(int)d.TotalMinutes} min";
-        if (d.TotalDays < 1) return $"há {(int)d.TotalHours}h{d.Minutes:00}";
-        return $"há {(int)d.TotalDays} dia(s)";
-    }
-
-    private async Task ReloadAsync()
-    {
-        _loading = true;
-        _loadError = null;
+        _carregando = true;
+        _erro = null;
         try
         {
             _usoAtual = await Api.GetUsoAtualAsync();
-            if (_usoAtual is null)
-            {
-                _veiculosDisponiveis = (await Api.GetVehiclesAsync())
-                    .Where(v => v.Status == VehicleStatus.Disponivel)
-                    .ToList();
-                _empresas = (await Api.GetEmpresasAsync()).ToList();
-                _motivos = (await Api.GetMotivosUsoAsync()).ToList();
-                if (_veiculosDisponiveis.Count == 1 && string.IsNullOrEmpty(_startForm.VeiculoId))
-                    _startForm.VeiculoId = _veiculosDisponiveis[0].Id.ToString();
-            }
-            else
-            {
-                _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
-            }
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            // Sessão salva expirou/foi revogada — volta pra escolha de perfil.
+            await AuthState.SairAsync();
+            Nav.NavigateTo("/login");
         }
         catch (HttpRequestException ex)
         {
-            _loadError = $"Não foi possível carregar: {ex.Message}";
+            _erro = $"Não foi possível carregar: {ex.Message}";
         }
         finally
         {
-            _loading = false;
+            _carregando = false;
         }
     }
 
-    private async Task HandleIniciarAsync()
+    private async Task IniciadoAsync()
     {
-        _submitting = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            if (!Guid.TryParse(_startForm.VeiculoId, out var veiculoId))
-            {
-                _actionError = "Selecione um veículo.";
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(_startForm.Finalidade))
-            {
-                _actionError = "Informe a finalidade.";
-                return;
-            }
-
-            Guid? empresaId = Guid.TryParse(_startForm.EmpresaId, out var parsedEmpresaId) ? parsedEmpresaId : null;
-
-            await Api.IniciarUsoAsync(new StartUsageRequest(
-                veiculoId, _startForm.Finalidade, _startForm.Origem, _startForm.Destino, _startForm.OdometroInicial, empresaId));
-            await ReloadAsync();
-        }
-        catch (HttpRequestException ex)
-        {
-            _actionError = $"Não foi possível iniciar o uso: {ex.Message}";
-        }
-        finally
-        {
-            _submitting = false;
-        }
+        _aviso = "🚗 Saída registrada. Boa viagem!";
+        await CarregarAsync();
     }
 
-    private async Task HandlePainelPhotoSelectedAsync(InputFileChangeEventArgs e)
+    private void Finalizado(string resumo)
     {
-        _lendoPainel = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            var geo = await JS.InvokeAsync<GeoPosition?>("getGeolocation");
-
-            var file = e.File;
-            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
-
-            var leitura = await Api.LerPainelAsync(memoryStream, file.Name, file.ContentType, geo?.Lat, geo?.Lng);
-            if (leitura?.OdometroLido is { } lido)
-                _startForm.OdometroInicial = lido;
-            if (!string.IsNullOrWhiteSpace(leitura?.EnderecoSugerido))
-                _startForm.Origem = leitura!.EnderecoSugerido;
-
-            var mensagem = leitura is { OdometroLido: null, EnderecoSugerido: null }
-                ? "Não consegui ler nada dessa foto — preencha manualmente."
-                : "Foto lida — confira os campos antes de iniciar.";
-            if (geo?.Error is not null)
-                mensagem += $" (Localização não capturada: {geo.Error})";
-            _actionStatus = mensagem;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _actionError = $"Não foi possível ler a foto do painel: {ex.Message}";
-        }
-        finally
-        {
-            _lendoPainel = false;
-        }
+        _finalizado = resumo;
+        _usoAtual = null;
     }
 
-    private async Task HandlePhotoSelectedAsync(InputFileChangeEventArgs e, VehiclePhotoType tipo)
+    private async Task NovaSaidaAsync()
     {
-        if (_usoAtual is null)
-            return;
-
-        _uploadingPhoto = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            var file = e.File;
-            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
-
-            var foto = await Api.UploadFotoAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType, tipo, null);
-            if (foto?.OdometroLido is { } lido)
-            {
-                _actionStatus = $"Foto enviada. Km lido: {lido} — confira antes de finalizar.";
-                if (tipo == VehiclePhotoType.OdometroFinal)
-                    _finishForm.OdometroFinal = lido;
-            }
-            else
-            {
-                _actionStatus = "Foto enviada.";
-            }
-            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _actionError = $"Não foi possível enviar a foto: {ex.Message}";
-        }
-        finally
-        {
-            _uploadingPhoto = false;
-        }
-    }
-
-    private async Task HandleVoiceNoteSelectedAsync(InputFileChangeEventArgs e)
-    {
-        if (_usoAtual is null)
-            return;
-
-        _uploadingVoice = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            var file = e.File;
-            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
-
-            await Api.UploadNotaDeVozAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType);
-            _actionStatus = "Nota de voz enviada — a transcrição pode levar alguns segundos.";
-            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _actionError = $"Não foi possível enviar a nota de voz: {ex.Message}";
-        }
-        finally
-        {
-            _uploadingVoice = false;
-        }
-    }
-
-    private async Task HandleReceiptPhotoSelectedAsync(InputFileChangeEventArgs e)
-    {
-        if (_usoAtual is null)
-            return;
-
-        _lendoComprovante = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            var file = e.File;
-            await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
-
-            var leitura = await Api.LerComprovanteAsync(_usoAtual.Id, memoryStream, file.Name, file.ContentType);
-            if (leitura?.Litros is { } litros)
-                _fuelForm.Litros = litros;
-            if (leitura?.ValorTotal is { } valorTotal)
-                _fuelForm.ValorTotal = valorTotal;
-            if (leitura?.ValorPorLitro is { } valorPorLitro)
-                _fuelForm.ValorPorLitro = valorPorLitro;
-
-            _actionStatus = leitura is { Litros: null, ValorTotal: null, ValorPorLitro: null }
-                ? "Não consegui ler esse comprovante — preencha manualmente."
-                : "Comprovante lido — confira os valores antes de registrar.";
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _actionError = $"Não foi possível ler o comprovante: {ex.Message}";
-        }
-        finally
-        {
-            _lendoComprovante = false;
-        }
-    }
-
-    private async Task HandleFuelAsync()
-    {
-        if (_usoAtual is null)
-            return;
-
-        _submitting = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            await Api.AddAbastecimentoAsync(_usoAtual.Id, new AddFuelEntryRequest(
-                _fuelForm.Litros, _fuelForm.ValorTotal, _fuelForm.Odometro, _fuelForm.ValorPorLitro));
-            _actionStatus = "Abastecimento registrado.";
-            _fuelForm = new FuelForm();
-            _mostrarAbastecimento = false;
-            _detalhe = await Api.GetUsageRecordDetailAsync(_usoAtual.Id);
-        }
-        catch (HttpRequestException ex)
-        {
-            _actionError = $"Não foi possível registrar o abastecimento: {ex.Message}";
-        }
-        finally
-        {
-            _submitting = false;
-        }
-    }
-
-    private async Task HandleFinalizarAsync()
-    {
-        if (_usoAtual is null)
-            return;
-
-        _submitting = true;
-        _actionError = null;
-        _actionStatus = null;
-        try
-        {
-            await Api.FinalizarUsoAsync(_usoAtual.Id, _finishForm.OdometroFinal);
-            _usoAtual = null;
-            _detalhe = null;
-            _actionStatus = "Uso finalizado. Obrigado!";
-            await ReloadAsync();
-        }
-        catch (HttpRequestException ex)
-        {
-            _actionError = $"Não foi possível finalizar o uso: {ex.Message}";
-        }
-        finally
-        {
-            _submitting = false;
-        }
-    }
-
-    private class StartForm
-    {
-        public string VeiculoId { get; set; } = string.Empty;
-        public string EmpresaId { get; set; } = string.Empty;
-        public string Finalidade { get; set; } = string.Empty;
-        public string? Origem { get; set; }
-        public string? Destino { get; set; }
-        public int OdometroInicial { get; set; }
-    }
-
-    private class FuelForm
-    {
-        public decimal Litros { get; set; }
-        public decimal ValorTotal { get; set; }
-        public decimal? ValorPorLitro { get; set; }
-        public int Odometro { get; set; }
-    }
-
-    private class FinishForm
-    {
-        public int OdometroFinal { get; set; }
-    }
-
-    private class GeoPosition
-    {
-        public double? Lat { get; set; }
-        public double? Lng { get; set; }
-        public string? Error { get; set; }
+        _finalizado = null;
+        _aviso = null;
+        await CarregarAsync();
     }
 }

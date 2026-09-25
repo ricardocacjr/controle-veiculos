@@ -1,0 +1,363 @@
+@using ControleVeiculos.Domain.Enums
+@using ControleVeiculos.Shared.Empresas
+@using ControleVeiculos.Shared.UsageRecords
+@using ControleVeiculos.Shared.Vehicles
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject Localizacao Localizacao
+@inject BaseOperacional Base
+@inject IJSRuntime JS
+
+@if (_carregando)
+{
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
+}
+else if (_erroCarga is not null)
+{
+    <Mensagens Erro="@_erroCarga" />
+    <button class="btn btn-soft btn-app" @onclick="CarregarAsync">Tentar de novo</button>
+}
+else if (_veiculos.Count == 0)
+{
+    <div class="empty-state">
+        <div class="empty-icon"><Icon Name="car" Size="28" /></div>
+        <h1 class="step-title" style="color:var(--text)">Nenhum carro livre agora</h1>
+        <p>O carro está em uso por outra pessoa. Quando ela chegar e finalizar, ele aparece aqui.</p>
+    </div>
+    <button class="btn btn-soft btn-app" @onclick="CarregarAsync">Atualizar</button>
+    <a class="link-discreto" href="usos">Minhas saídas</a>
+}
+else
+{
+    @switch (_passo)
+    {
+        case 1:
+            <Passos Atual="1" Total="4" />
+            <h1 class="step-title">Para qual empresa?</h1>
+            <div class="choice-list">
+                @foreach (var empresa in _empresas)
+                {
+                    <button type="button" class="choice-btn @(_empresa?.Id == empresa.Id ? "selected" : "")" @onclick="() => EscolherEmpresa(empresa)">
+                        <span class="choice-icon" style="background:@Rotulos.CorAvatar(empresa.Nome)">@Rotulos.Iniciais(empresa.Nome)</span>
+                        <span>@empresa.Nome</span>
+                        <Icon Name="chevron-right" Class="choice-arrow" />
+                    </button>
+                }
+            </div>
+            <a class="link-discreto" href="usos">Minhas saídas</a>
+            break;
+
+        case 2:
+            <button type="button" class="back-link" @onclick="() => _passo = 1"><Icon Name="chevron-left" Size="18" /> Voltar</button>
+            <Passos Atual="2" Total="4" />
+            <h1 class="step-title">Qual o motivo?</h1>
+            @if (!_digitandoMotivo)
+            {
+                <div class="choice-list">
+                    @foreach (var motivo in _motivosOrdenados)
+                    {
+                        <button type="button" class="choice-btn @(_motivo == motivo ? "selected" : "")" @onclick="() => EscolherMotivo(motivo)">
+                            <span class="choice-icon tone-primary" style="color:var(--primary)"><Icon Name="target" /></span>
+                            <span>@motivo</span>
+                            <Icon Name="chevron-right" Class="choice-arrow" />
+                        </button>
+                    }
+                    <button type="button" class="choice-btn outline" @onclick="() => _digitandoMotivo = true">
+                        <span class="choice-icon" style="background:var(--muted)"><Icon Name="plus" /></span>
+                        <span>Outro motivo</span>
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="reading-card">
+                    <div class="reading-label">Escreva o motivo</div>
+                    <input class="form-control" @bind="_motivoDigitado" @bind:event="oninput" placeholder="Ex.: Buscar material na loja" autofocus />
+                    <div class="field-hint">Ele fica salvo pra próxima vez.</div>
+                    <button type="button" class="btn btn-primary btn-app mt-3" disabled="@string.IsNullOrWhiteSpace(_motivoDigitado)"
+                            @onclick="() => EscolherMotivo(_motivoDigitado!.Trim())">Continuar</button>
+                    <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _digitandoMotivo = false">Ver a lista</button>
+                </div>
+            }
+            break;
+
+        case 3:
+            <button type="button" class="back-link" @onclick="() => _passo = 2"><Icon Name="chevron-left" Size="18" /> Voltar</button>
+            <Passos Atual="3" Total="4" />
+            <h1 class="step-title">Tire uma foto do painel</h1>
+
+            @if (!_fotoLida)
+            {
+                <CameraGrande Titulo="Tirar foto do painel" Subtitulo="Mostrando o km (odômetro). O app lê o número e pega o local sozinho."
+                              TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+                <Mensagens Erro="@_erro" />
+                <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarSemFotoAsync">Sem câmera? Digitar o km</button>
+            }
+            else
+            {
+                <div class="reading-card">
+                    <div class="reading-label">Km do painel</div>
+                    @if (_km is null || _corrigindoKm)
+                    {
+                        @if (_km is null && !_corrigindoKm)
+                        {
+                            <div class="notice notice-info">Não consegui ler o número. Digite o km que aparece no painel:</div>
+                        }
+                        <input class="form-control km-input" type="number" inputmode="numeric" @bind="_km" @bind:event="oninput" placeholder="Ex.: 80007" />
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-end justify-content-between gap-2">
+                            <div class="km-display">@_km.Value.ToString("N0") <small>km</small></div>
+                            <button type="button" class="btn btn-soft" @onclick="() => _corrigindoKm = true"><Icon Name="pencil" Size="16" /> Corrigir</button>
+                        </div>
+                    }
+                    @if (AvisoKm is { } aviso)
+                    {
+                        <div class="notice notice-error mt-3 mb-0">@aviso</div>
+                    }
+                </div>
+
+                <div class="reading-card">
+                    <div class="reading-label">Saindo de</div>
+                    <LocalLido NaBase="_naBase" Endereco="@_origem" Posicao="_posicao" />
+                </div>
+
+                <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null or <= 0)" @onclick="() => _passo = 4">
+                    Continuar <Icon Name="chevron-right" Size="20" />
+                </button>
+                <button type="button" class="btn btn-soft btn-app mt-2" @onclick="RefazerFoto"><Icon Name="camera" Size="18" /> Tirar outra foto</button>
+            }
+            break;
+
+        case 4:
+            <button type="button" class="back-link" @onclick="() => _passo = 3"><Icon Name="chevron-left" Size="18" /> Voltar</button>
+            <Passos Atual="4" Total="4" />
+            <h1 class="step-title">Tudo certo?</h1>
+
+            <div class="reading-card">
+                <div class="summary-row">
+                    <Icon Name="car" Class="summary-icon" />
+                    <span class="flex-grow-1">
+                        <span class="summary-key">Veículo</span>
+                        @if (_veiculos.Count > 1)
+                        {
+                            <select class="form-select mt-1" @bind="VeiculoIdTexto">
+                                @foreach (var v in _veiculos)
+                                {
+                                    <option value="@v.Id">@v.Placa · @v.Marca @v.Modelo</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <span class="summary-value">@_veiculo!.Placa · @_veiculo.Marca @_veiculo.Modelo</span>
+                        }
+                    </span>
+                </div>
+                <div class="summary-row">
+                    <Icon Name="building" Class="summary-icon" />
+                    <span><span class="summary-key">Empresa</span><span class="summary-value">@_empresa?.Nome</span></span>
+                </div>
+                <div class="summary-row">
+                    <Icon Name="target" Class="summary-icon" />
+                    <span><span class="summary-key">Motivo</span><span class="summary-value">@_motivo</span></span>
+                </div>
+                <div class="summary-row">
+                    <Icon Name="gauge" Class="summary-icon" />
+                    <span><span class="summary-key">Km de saída</span><span class="summary-value">@(_km?.ToString("N0")) km</span></span>
+                </div>
+                <div class="summary-row">
+                    <Icon Name="pin" Class="summary-icon" />
+                    <span><span class="summary-key">Saindo de</span><span class="summary-value">@(_naBase ? Base.Nome : _origem ?? "Local não identificado")</span></span>
+                </div>
+            </div>
+
+            <Mensagens Erro="@_erro" />
+
+            <button type="button" class="btn btn-go btn-app mt-3" disabled="@_enviando" @onclick="SairAsync">
+                @if (_enviando)
+                {
+                    <span class="spinner"></span><span>Registrando...</span>
+                }
+                else
+                {
+                    <Icon Name="car" Size="24" /><span>SAIR</span>
+                }
+            </button>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public EventCallback OnIniciado { get; set; }
+
+    private bool _carregando = true;
+    private string? _erroCarga;
+    private int _passo = 1;
+
+    private List<VehicleDto> _veiculos = [];
+    private List<EmpresaDto> _empresas = [];
+    private List<string> _motivosOrdenados = [];
+
+    private VehicleDto? _veiculo;
+    private EmpresaDto? _empresa;
+    private string? _motivo;
+    private bool _digitandoMotivo;
+    private string? _motivoDigitado;
+
+    private bool _lendo;
+    private bool _fotoLida;
+    private bool _corrigindoKm;
+    private int? _km;
+    private Posicao? _posicao;
+    private bool _naBase;
+    private string? _origem;
+
+    private bool _enviando;
+    private string? _erro;
+
+    private string VeiculoIdTexto
+    {
+        get => _veiculo?.Id.ToString() ?? "";
+        set => _veiculo = _veiculos.FirstOrDefault(v => v.Id.ToString() == value) ?? _veiculo;
+    }
+
+    private int KmReferencia => _veiculo?.OdometroAtual ?? 0;
+
+    private string? AvisoKm =>
+        _km is { } km && KmReferencia > 0 && km < KmReferencia
+            ? $"Esse km é menor que o último registrado ({KmReferencia:N0} km). Confira o número."
+            : _km is { } km2 && KmReferencia > 0 && km2 - KmReferencia > 1000
+                ? $"Esse km está {km2 - KmReferencia:N0} km acima do último registrado. Confira o número."
+                : null;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        _erroCarga = null;
+        try
+        {
+            var veiculos = Api.GetVehiclesAsync();
+            var empresas = Api.GetEmpresasAsync();
+            var motivos = Api.GetMotivosUsoAsync();
+            var historico = Api.GetUsageRecordsAsync();
+            await Task.WhenAll(veiculos, empresas, motivos, historico);
+
+            _veiculos = veiculos.Result.Where(v => v.Status == VehicleStatus.Disponivel).OrderBy(v => v.Placa).ToList();
+            _empresas = empresas.Result.ToList();
+
+            // Motivos mais usados por este motorista primeiro; o resto do catálogo em ordem alfabética.
+            var usados = historico.Result
+                .GroupBy(u => u.Finalidade.Trim())
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .ToList();
+            _motivosOrdenados = usados
+                .Concat(motivos.Result.Select(m => m.Nome.Trim()).OrderBy(n => n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // "Favorito" = o carro que ele usou por último; com um carro só, é ele.
+            var ultimoVeiculo = historico.Result.OrderByDescending(u => u.IniciadoEm).FirstOrDefault()?.VeiculoId;
+            _veiculo = _veiculos.FirstOrDefault(v => v.Id == ultimoVeiculo) ?? _veiculos.FirstOrDefault();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroCarga = $"Não foi possível carregar: {ex.Message}";
+        }
+        finally
+        {
+            _carregando = false;
+        }
+    }
+
+    private void EscolherEmpresa(EmpresaDto empresa)
+    {
+        _empresa = empresa;
+        _passo = 2;
+    }
+
+    private void EscolherMotivo(string motivo)
+    {
+        _motivo = motivo;
+        _digitandoMotivo = false;
+        _passo = 3;
+    }
+
+    private async Task LerPainelAsync(IBrowserFile foto)
+    {
+        _lendo = true;
+        _erro = null;
+        try
+        {
+            var posicao = Localizacao.ObterAsync();
+            using var imagem = await Localizacao.LerArquivoAsync(foto);
+            _posicao = await posicao;
+            _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
+
+            // Na base não precisa de endereço (e economiza a consulta ao Nominatim).
+            var leitura = await Api.LerPainelAsync(imagem, "painel.jpg", "image/jpeg",
+                _naBase ? null : _posicao.Lat, _naBase ? null : _posicao.Lng, KmReferencia > 0 ? KmReferencia : null, _veiculo?.Id);
+
+            _km = leitura?.OdometroLido;
+            _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : leitura?.EnderecoSugerido;
+            if (!_naBase && _origem is null && _posicao.Ok)
+                _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
+
+            _fotoLida = true;
+            _corrigindoKm = false;
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erro = $"Não consegui ler a foto: {ex.Message}. Tente de novo.";
+        }
+        finally
+        {
+            _lendo = false;
+        }
+    }
+
+    private async Task DigitarSemFotoAsync()
+    {
+        _posicao = await Localizacao.ObterAsync();
+        _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
+        _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}"
+            : _posicao.Ok ? await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value) : null;
+        _km = null;
+        _fotoLida = true;
+    }
+
+    private void RefazerFoto()
+    {
+        _fotoLida = false;
+        _km = null;
+    }
+
+    private async Task SairAsync()
+    {
+        if (_veiculo is null || _empresa is null || _motivo is null || _km is not > 0)
+            return;
+
+        _enviando = true;
+        _erro = null;
+        try
+        {
+            await Api.IniciarUsoAsync(new StartUsageRequest(
+                _veiculo.Id, _motivo, _origem, null, _km.Value, _empresa.Id, _posicao?.Lat, _posicao?.Lng));
+            await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
+            await OnIniciado.InvokeAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = $"Não foi possível registrar a saída: {ex.Message}";
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

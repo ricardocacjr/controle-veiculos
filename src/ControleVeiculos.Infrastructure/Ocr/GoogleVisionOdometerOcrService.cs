@@ -11,17 +11,19 @@ namespace ControleVeiculos.Infrastructure.Ocr;
 /// Lê o odômetro numa foto via Google Cloud Vision (TEXT_DETECTION). Requer a mesma conta de
 /// serviço usada pra transcrição de voz, com a API "Cloud Vision" também habilitada — ver
 /// README, seção "Configuração de voz e imagem (Google Cloud)".
-///
-/// Heurística: o odômetro costuma ser a sequência de dígitos mais longa detectada na imagem
-/// (painéis costumam ter outros números menores — velocímetro, relógio, etc). Não é perfeito;
-/// por isso é sempre devolvido como sugestão pra conferência humana, nunca aplicado direto.
 /// </summary>
 public class GoogleVisionOdometerOcrService(IConfiguration configuration, ILogger<GoogleVisionOdometerOcrService> logger)
     : IOdometerOcrService
 {
     private static readonly Regex DigitRun = new(@"\d{3,7}", RegexOptions.Compiled);
 
-    public async Task<int?> ExtractOdometerAsync(Stream imageStream, CancellationToken ct = default)
+    // "80.007" / "80 007" (milhar separado) → "80007" antes de procurar os números.
+    private static readonly Regex SeparadorMilhar = new(@"(?<=\d)[.\s](?=\d{3}(?!\d))", RegexOptions.Compiled);
+
+    /// <summary>Folga máxima entre o último km conhecido e a leitura (uso sem app, erro de cadastro).</summary>
+    private const int FolgaMaximaKm = 20000;
+
+    public async Task<int?> ExtractOdometerAsync(Stream imageStream, int? kmReferencia, CancellationToken ct = default)
     {
         var credentialsPath = configuration["GoogleCloud:CredentialsPath"];
         if (string.IsNullOrWhiteSpace(credentialsPath) && Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS") is null)
@@ -44,20 +46,41 @@ public class GoogleVisionOdometerOcrService(IConfiguration configuration, ILogge
 
             var response = await client.DetectTextAsync(image);
             var texto = response.FirstOrDefault()?.Description;
-            if (string.IsNullOrWhiteSpace(texto))
-                return null;
-
-            var candidato = DigitRun.Matches(texto)
-                .Select(m => m.Value)
-                .OrderByDescending(v => v.Length)
-                .FirstOrDefault();
-
-            return candidato is not null && int.TryParse(candidato, out var odometro) ? odometro : null;
+            return string.IsNullOrWhiteSpace(texto) ? null : EscolherOdometro(texto, kmReferencia);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Falha ao ler odômetro via Google Cloud Vision.");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Painéis mostram vários números (velocímetro, relógio "18 40", autonomia "152 km"). Com o
+    /// último km conhecido, fica o menor número ≥ a ele (o odômetro só sobe). Sem referência
+    /// (veículo recém-cadastrado com km 0), cai na heurística antiga: a sequência mais longa.
+    /// </summary>
+    internal static int? EscolherOdometro(string texto, int? kmReferencia)
+    {
+        var candidatos = DigitRun.Matches(SeparadorMilhar.Replace(texto, ""))
+            .Select(m => int.TryParse(m.Value, out var n) ? n : (int?)null)
+            .OfType<int>()
+            .Distinct()
+            .ToList();
+
+        if (kmReferencia is > 0 and var referencia)
+        {
+            return candidatos
+                .Where(n => n >= referencia && n <= referencia + FolgaMaximaKm)
+                .OrderBy(n => n - referencia)
+                .Select(n => (int?)n)
+                .FirstOrDefault();
+        }
+
+        return candidatos
+            .OrderByDescending(n => n.ToString().Length)
+            .ThenByDescending(n => n)
+            .Select(n => (int?)n)
+            .FirstOrDefault();
     }
 }

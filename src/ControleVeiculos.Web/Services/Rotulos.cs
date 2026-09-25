@@ -31,7 +31,33 @@ public static class Rotulos
         _ => "Foto",
     };
 
-    public static string DataHora(DateTimeOffset data) => data.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    /// <summary>Horário de Brasília (UTC-3, sem horário de verão desde 2019). Fixo em vez de
+    /// ToLocalTime porque o container do Render roda em UTC.</summary>
+    public static DateTimeOffset Local(DateTimeOffset data) => data.ToOffset(TimeSpan.FromHours(-3));
+
+    public static string DataHora(DateTimeOffset data) => Local(data).ToString("dd/MM/yyyy HH:mm");
+
+    public static string Hora(DateTimeOffset data) => Local(data).ToString("HH:mm");
 
     public static string Km(int km) => $"{km:N0} km";
+
+    public static string Duracao(DateTimeOffset inicio)
+    {
+        var d = DateTimeOffset.UtcNow - inicio;
+        if (d.TotalMinutes < 1) return "agora";
+        if (d.TotalHours < 1) return $"há {(int)d.TotalMinutes} min";
+        if (d.TotalDays < 1) return $"há {(int)d.TotalHours}h{d.Minutes:00}";
+        return $"há {(int)d.TotalDays} dia(s)";
+    }
+
+    public static string Iniciais(string? nome) =>
+        string.Concat((nome ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    /// <summary>Cor fixa por pessoa (mesmo nome = mesma cor) pro avatar sem foto.</summary>
+    public static string CorAvatar(string? nome)
+    {
+        string[] cores = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#0891b2", "#ca8a04", "#4f46e5"];
+        var soma = (nome ?? "").Sum(c => c);
+        return cores[soma % cores.Length];
+    }
 }

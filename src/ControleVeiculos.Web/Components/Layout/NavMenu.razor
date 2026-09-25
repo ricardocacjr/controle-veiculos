@@ -14,8 +14,12 @@
 
     private record NavItem(string Href, string Icon, string Label);
 
-    // Motorista vê só o próprio fluxo; gestão (Admin/Gestor) vê o cadastro da frota.
-    private IEnumerable<NavItem> Items => AuthState.IsInRole("Motorista")
-        ? [new("motorista/uso", "car", "Uso"), new("usos", "history", "Histórico")]
-        : [new("usos", "clipboard", "Usos"), new("veiculos", "car", "Veículos"), new("motoristas", "users", "Motoristas"), new("empresas", "building", "Empresas")];
+    // Só a administração tem menu — o motorista não vê nenhum (vai direto pro "uso").
+    private static readonly NavItem[] Items =
+    [
+        new("usos", "clipboard", "Usos"),
+        new("veiculos", "car", "Veículos"),
+        new("motoristas", "users", "Motoristas"),
+        new("empresas", "building", "Empresas"),
+    ];
 }

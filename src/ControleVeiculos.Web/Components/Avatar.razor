@@ -1,0 +1,22 @@
+@inject ControleVeiculosApiClient Api
+
+@* Iniciais coloridas por baixo; a foto (se existir) cobre por cima. Sem saber antes se há foto
+   (TemFoto null), tenta mesmo assim: um 404 só esconde o <img>. *@
+<span class="avatar-circle @Class" style="background:@Rotulos.CorAvatar(Nome)">
+    @Rotulos.Iniciais(Nome)
+    @if (UserId is { } id && TemFoto != false)
+    {
+        @* @key: foto nova (Versao) = <img> novo, senão o display:none de um 404 anterior ficaria grudado. *@
+        <img @key="Versao" src="@Api.FotoPerfilUrl(id, Versao)" alt="" onerror="this.style.display='none'" onload="this.style.display=''" />
+    }
+</span>
+
+@code {
+    [Parameter] public Guid? UserId { get; set; }
+    [Parameter] public string? Nome { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Versao { get; set; }
+
+    /// <summary>null = não sabe (tenta carregar); false = não tem (nem tenta).</summary>
+    [Parameter] public bool? TemFoto { get; set; }
+}

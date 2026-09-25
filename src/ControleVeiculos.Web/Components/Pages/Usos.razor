@@ -5,6 +5,10 @@
 
 <PageTitle>@Titulo</PageTitle>
 
+@if (_ehMotorista)
+{
+    <a class="back-link text-decoration-none" href="motorista/uso"><Icon Name="chevron-left" Size="18" /> Voltar</a>
+}
 <h1 class="page-title">@Titulo</h1>
 <p class="page-subtitle">@(_ehMotorista ? "Suas saídas com o veículo." : "Todas as saídas registradas pelos motoristas.")</p>
 
@@ -48,7 +52,7 @@ else
     private string? _error;
     private bool _ehMotorista;
 
-    private string Titulo => _ehMotorista ? "Histórico" : "Usos registrados";
+    private string Titulo => _ehMotorista ? "Minhas saídas" : "Usos registrados";
 
     private string Subtitulo(ControleVeiculos.Shared.UsageRecords.UsageRecordDto uso)
     {
@@ -72,7 +76,8 @@ else
             return;
         }
 
-        _ehMotorista = AuthState.IsInRole("Motorista");
+        // Ricardo é motorista e admin: na lista geral (administração) ele vê todos.
+        _ehMotorista = AuthState.EhMotorista && !AuthState.EhGestao;
         try
         {
             _usos = (await Api.GetUsageRecordsAsync()).OrderByDescending(u => u.IniciadoEm).ToList();

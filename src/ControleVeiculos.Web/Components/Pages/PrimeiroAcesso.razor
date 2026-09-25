@@ -1,0 +1,164 @@
+@page "/primeiro-acesso"
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Primeiro acesso</PageTitle>
+
+@if (!AuthState.IsAuthenticated)
+{
+    return;
+}
+
+<div class="pin-screen">
+    <Avatar UserId="AuthState.UserId" Nome="@AuthState.Nome" Versao="@_versaoFoto" />
+
+    @switch (_etapa)
+    {
+        case Etapa.PinTemporario:
+            <h1 class="pin-title">Digite o PIN temporário</h1>
+            <p class="pin-sub">O que o administrador te passou.</p>
+            <PinPad Erro="@_erro" OnCompleto="GuardarTemporario" />
+            break;
+
+        case Etapa.NovoPin:
+            <h1 class="pin-title">Crie o seu PIN</h1>
+            <p class="pin-sub">Escolha 6 números fáceis de lembrar. Não conte pra ninguém.</p>
+            <PinPad Erro="@_erro" OnCompleto="GuardarNovo" />
+            break;
+
+        case Etapa.Confirmar:
+            <h1 class="pin-title">Repita o PIN</h1>
+            <p class="pin-sub">Digite os mesmos 6 números de novo.</p>
+            <PinPad Erro="@_erro" Ocupado="@_salvando" OnCompleto="ConfirmarAsync" />
+            break;
+
+        case Etapa.Foto:
+            <h1 class="pin-title">Pronto, PIN criado! ✅</h1>
+            <p class="pin-sub">Agora coloque uma foto sua — ela aparece na tela de entrada.</p>
+            <div class="auth-card mt-4">
+                <CameraGrande Titulo="Tirar uma selfie" Subtitulo="Ou escolher uma foto da galeria"
+                              Icone="user" Captura="user" LadoMaximo="320" TextoOcupado="Enviando..."
+                              Ocupado="@_salvando" OnFoto="EnviarFotoAsync" />
+                <Mensagens Erro="@_erroFoto" />
+                <button type="button" class="btn btn-soft btn-app mt-3" @onclick="Concluir">
+                    @(_fotoEnviada ? "Continuar" : "Agora não")
+                </button>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    private enum Etapa { PinTemporario, NovoPin, Confirmar, Foto }
+
+    private Etapa _etapa;
+    private string? _pinAtual;
+    private string? _novoPin;
+    private string? _erro;
+    private string? _erroFoto;
+    private bool _salvando;
+    private bool _fotoEnviada;
+    private string? _versaoFoto;
+
+    protected override void OnInitialized()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        _pinAtual = AuthState.PinTemporario;
+        _etapa = !AuthState.PrecisaDefinirPin ? Etapa.Foto
+            : _pinAtual is null ? Etapa.PinTemporario
+            : Etapa.NovoPin;
+    }
+
+    private void GuardarTemporario(string pin)
+    {
+        _pinAtual = pin;
+        _erro = null;
+        _etapa = Etapa.NovoPin;
+    }
+
+    private void GuardarNovo(string pin)
+    {
+        _erro = null;
+        if (pin == _pinAtual)
+        {
+            _erro = "Escolha um PIN diferente do temporário.";
+            return;
+        }
+        if (pin.Distinct().Count() == 1 || "0123456789".Contains(pin) || "9876543210".Contains(pin))
+        {
+            _erro = "PIN fácil demais (ex.: 111111, 123456). Escolha outro.";
+            return;
+        }
+
+        _novoPin = pin;
+        _etapa = Etapa.Confirmar;
+    }
+
+    private async Task ConfirmarAsync(string pin)
+    {
+        _erro = null;
+        if (pin != _novoPin)
+        {
+            _erro = "Os PINs não são iguais. Vamos de novo.";
+            _novoPin = null;
+            _etapa = Etapa.NovoPin;
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            var resposta = await Api.DefinirPinAsync(_pinAtual!, pin);
+            if (resposta is not null)
+                await AuthState.PinDefinidoAsync(resposta.Token);
+            await JS.InvokeVoidAsync("cvVibrar", 60);
+            _etapa = Etapa.Foto;
+        }
+        catch (HttpRequestException ex)
+        {
+            // PIN temporário errado (ex.: sessão restaurada e o usuário digitou errado) — recomeça.
+            _erro = ex.Message;
+            _etapa = Etapa.PinTemporario;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task EnviarFotoAsync(IBrowserFile foto)
+    {
+        if (AuthState.UserId is not { } id)
+            return;
+
+        _salvando = true;
+        _erroFoto = null;
+        try
+        {
+            await using var stream = foto.OpenReadStream(maxAllowedSize: 400 * 1024);
+            using var memoria = new MemoryStream();
+            await stream.CopyToAsync(memoria);
+            memoria.Position = 0;
+            await Api.EnviarFotoPerfilAsync(id, memoria, "image/jpeg");
+            _fotoEnviada = true;
+            _versaoFoto = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erroFoto = $"Não foi possível enviar a foto: {ex.Message}";
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private void Concluir() => Nav.NavigateTo("/");
+}

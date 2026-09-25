@@ -117,4 +117,17 @@ static async Task InitializeDatabaseAsync(WebApplication app)
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole<Guid>(role));
     }
+
+    // Cadastro agora é só pelo Admin — num banco novo ninguém conseguiria criar o primeiro.
+    // BootstrapAdmin__Email/BootstrapAdmin__Senha criam esse primeiro Admin (só se não houver nenhum).
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var email = app.Configuration["BootstrapAdmin:Email"];
+    var senha = app.Configuration["BootstrapAdmin:Senha"];
+    if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(senha)
+        && (await userManager.GetUsersInRoleAsync(Roles.Admin)).Count == 0)
+    {
+        var admin = new ApplicationUser { UserName = email, Email = email, NomeCompleto = "Administrador" };
+        if ((await userManager.CreateAsync(admin, senha)).Succeeded)
+            await userManager.AddToRoleAsync(admin, Roles.Admin);
+    }
 }

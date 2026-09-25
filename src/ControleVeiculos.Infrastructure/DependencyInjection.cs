@@ -22,12 +22,16 @@ public static class DependencyInjection
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
-                // Exigir maiúscula + caractere especial (padrão do Identity) é fricção
-                // desnecessária pra motoristas digitando a senha no celular em campo — mantém
-                // dígito + minúscula + 8 caracteres, que já é um mínimo razoável.
-                options.Password.RequiredLength = 8;
+                // Motoristas entram com PIN numérico de 6 dígitos (perfil + PIN, estilo app de
+                // banco). O bloqueio após tentativas erradas (lockout do Identity) compensa o
+                // espaço menor de combinações.
+                options.Password.RequiredLength = 6;
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = false;
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequireUppercase = false;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
                 options.User.RequireUniqueEmail = true;
             })
             .AddRoles<IdentityRole<Guid>>()

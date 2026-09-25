@@ -1,0 +1,50 @@
+@* Botão de câmera gigante (o <label> inteiro abre a câmera). Já devolve a foto reduzida pelo
+   próprio navegador — foto de celular tem 3-5 MB, isso sobe ~300 KB e fica bem mais rápido no 4G. *@
+<label class="camera-cta @Tom @(Compacto ? "compact" : "") @(Ocupado ? "is-busy" : "")">
+    <InputFile class="file-hidden" OnChange="AoEscolherAsync" accept="image/*" capture="@Captura" disabled="@Ocupado" />
+    <span class="camera-icon">
+        @if (Ocupado)
+        {
+            <span class="spinner"></span>
+        }
+        else
+        {
+            <Icon Name="@Icone" Size="@(Compacto ? 26 : 40)" />
+        }
+    </span>
+    <span>
+        <span class="camera-title d-block">@(Ocupado ? TextoOcupado : Titulo)</span>
+        @if (!string.IsNullOrEmpty(Subtitulo) && !Ocupado)
+        {
+            <span class="camera-sub d-block">@Subtitulo</span>
+        }
+    </span>
+</label>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = "Tirar foto";
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public string TextoOcupado { get; set; } = "Lendo a foto...";
+    [Parameter] public string Icone { get; set; } = "camera";
+    [Parameter] public string? Tom { get; set; }
+    [Parameter] public bool Compacto { get; set; }
+    [Parameter] public bool Ocupado { get; set; }
+    [Parameter] public string Captura { get; set; } = "environment";
+    [Parameter] public int LadoMaximo { get; set; } = 1600;
+    [Parameter] public EventCallback<IBrowserFile> OnFoto { get; set; }
+
+    private async Task AoEscolherAsync(InputFileChangeEventArgs e)
+    {
+        IBrowserFile arquivo = e.File;
+        try
+        {
+            arquivo = await e.File.RequestImageFileAsync("image/jpeg", LadoMaximo, LadoMaximo);
+        }
+        catch (Exception)
+        {
+            // Navegador sem suporte a redimensionar (raro) — segue com o arquivo original.
+        }
+
+        await OnFoto.InvokeAsync(arquivo);
+    }
+}

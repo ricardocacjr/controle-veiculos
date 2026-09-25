@@ -11,7 +11,9 @@
     {
         if (!AuthState.IsAuthenticated)
             Nav.NavigateTo("/login");
-        else if (AuthState.IsInRole("Motorista"))
+        else if (AuthState.PrecisaDefinirPin)
+            Nav.NavigateTo("/primeiro-acesso");
+        else if (AuthState.EhMotorista)
             Nav.NavigateTo("/motorista/uso");
         else
             Nav.NavigateTo("/usos");

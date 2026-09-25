@@ -1,0 +1,20 @@
+@using System.Globalization
+
+@* Mapa do OpenStreetMap (embed oficial, sem chave nem custo) + atalho pro app de mapas do celular. *@
+<div class="map-mini">
+    <iframe src="@UrlEmbed" style="height:@(Altura)px" loading="lazy" title="Mapa" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <a href="@UrlAbrir" target="_blank" rel="noopener"><Icon Name="pin" Size="17" /> Abrir no mapa</a>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public double Latitude { get; set; }
+    [Parameter, EditorRequired] public double Longitude { get; set; }
+    [Parameter] public int Altura { get; set; } = 200;
+
+    private static string F(double v) => v.ToString(CultureInfo.InvariantCulture);
+
+    private string UrlEmbed =>
+        $"https://www.openstreetmap.org/export/embed.html?bbox={F(Longitude - 0.004)},{F(Latitude - 0.0025)},{F(Longitude + 0.004)},{F(Latitude + 0.0025)}&layer=mapnik&marker={F(Latitude)},{F(Longitude)}";
+
+    private string UrlAbrir => $"https://www.google.com/maps/search/?api=1&query={F(Latitude)},{F(Longitude)}";
+}

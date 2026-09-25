@@ -1,0 +1,241 @@
+@using ControleVeiculos.Shared.UsageRecords
+@inject ControleVeiculosApiClient Api
+@inject Localizacao Localizacao
+@inject IJSRuntime JS
+
+<button type="button" class="back-link" @onclick="Voltar"><Icon Name="chevron-left" Size="18" /> @(_passo == 1 ? "Cancelar" : "Voltar")</button>
+<Passos Atual="_passo" Total="3" />
+
+@switch (_passo)
+{
+    case 1:
+        <h1 class="step-title">Foto do cupom ou nota</h1>
+        @if (!_cupomLido)
+        {
+            <CameraGrande Titulo="Fotografar o cupom" Subtitulo="Pegue o cupom inteiro, bem de perto. O app lê litros e valor."
+                          Tom="tone-fuel" TextoOcupado="Lendo o cupom..." LadoMaximo="2000" Ocupado="@_lendo" OnFoto="LerCupomAsync" />
+            <Mensagens Erro="@_erro" />
+            <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="() => _cupomLido = true">Sem cupom? Digitar os valores</button>
+        }
+        else
+        {
+            @if (!_leuAlgo)
+            {
+                <div class="notice notice-info">Não consegui ler o cupom. Digite os valores:</div>
+            }
+            <div class="reading-card">
+                <div class="field">
+                    <label>Litros</label>
+                    <input class="form-control km-input" type="number" inputmode="decimal" step="0.01" @bind="_litros" @bind:event="oninput" />
+                </div>
+                <div class="field-row">
+                    <div class="field mb-0">
+                        <label>Valor total (R$)</label>
+                        <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="_valorTotal" @bind:event="oninput" />
+                    </div>
+                    <div class="field mb-0">
+                        <label>Preço do litro (R$)</label>
+                        <input class="form-control" type="number" inputmode="decimal" step="0.001" @bind="_valorLitro" @bind:event="oninput" />
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_litros is not > 0 || _valorTotal is not > 0)" @onclick="() => _passo = 2">
+                Continuar <Icon Name="chevron-right" Size="20" />
+            </button>
+            <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _cupomLido = false"><Icon Name="camera" Size="18" /> Tirar outra foto</button>
+        }
+        break;
+
+    case 2:
+        <h1 class="step-title">Agora, foto do painel</h1>
+        @if (!_painelLido)
+        {
+            <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. O local do posto é registrado sozinho."
+                          TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+            <Mensagens Erro="@_erro" />
+            <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarKmAsync">Sem câmera? Digitar o km</button>
+        }
+        else
+        {
+            <div class="reading-card">
+                <div class="reading-label">Km do painel</div>
+                @if (_km is null || _corrigindoKm)
+                {
+                    @if (_km is null && !_corrigindoKm)
+                    {
+                        <div class="notice notice-info">Não consegui ler o número. Digite o km:</div>
+                    }
+                    <input class="form-control km-input" type="number" inputmode="numeric" @bind="_km" @bind:event="oninput" />
+                }
+                else
+                {
+                    <div class="d-flex align-items-end justify-content-between gap-2">
+                        <div class="km-display">@_km.Value.ToString("N0") <small>km</small></div>
+                        <button type="button" class="btn btn-soft" @onclick="() => _corrigindoKm = true"><Icon Name="pencil" Size="16" /> Corrigir</button>
+                    </div>
+                }
+                @if (_km is { } km && km < UltimoKm)
+                {
+                    <div class="notice notice-error mt-3 mb-0">O km não pode ser menor que o último registrado (@UltimoKm.ToString("N0") km).</div>
+                }
+            </div>
+            <div class="reading-card">
+                <div class="reading-label">Local do abastecimento</div>
+                <LocalLido Posicao="_posicao" />
+            </div>
+            <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null || _km < UltimoKm)" @onclick="() => _passo = 3">
+                Continuar <Icon Name="chevron-right" Size="20" />
+            </button>
+        }
+        break;
+
+    case 3:
+        <h1 class="step-title">Confere o abastecimento</h1>
+        <div class="reading-card">
+            <div class="summary-row">
+                <Icon Name="fuel" Class="summary-icon" />
+                <span><span class="summary-key">Litros</span><span class="summary-value">@_litros?.ToString("N2") L</span></span>
+            </div>
+            <div class="summary-row">
+                <Icon Name="check" Class="summary-icon" />
+                <span><span class="summary-key">Valor</span><span class="summary-value">R$ @_valorTotal?.ToString("N2")@(PrecoLitro is { } p ? $"  ·  R$ {p:N3}/L" : "")</span></span>
+            </div>
+            <div class="summary-row">
+                <Icon Name="gauge" Class="summary-icon" />
+                <span><span class="summary-key">Km</span><span class="summary-value">@_km?.ToString("N0") km</span></span>
+            </div>
+            <div class="summary-row">
+                <Icon Name="pin" Class="summary-icon" />
+                <span><span class="summary-key">Local</span><span class="summary-value">@(_posicao is { Ok: true } ? "Registrado no mapa" : "Não capturado")</span></span>
+            </div>
+        </div>
+        <Mensagens Erro="@_erro" />
+        <button type="button" class="btn btn-go btn-app mt-3" disabled="@_salvando" @onclick="SalvarAsync">
+            @if (_salvando)
+            {
+                <span class="spinner"></span><span>Salvando...</span>
+            }
+            else
+            {
+                <Icon Name="check" Size="24" /><span>Salvar abastecimento</span>
+            }
+        </button>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public UsageRecordDto Uso { get; set; } = default!;
+    [Parameter] public UsageRecordDetailDto? Detalhe { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback<string> OnConcluido { get; set; }
+
+    private int _passo = 1;
+    private bool _lendo;
+    private bool _salvando;
+    private string? _erro;
+
+    private bool _cupomLido;
+    private bool _leuAlgo = true;
+    private decimal? _litros;
+    private decimal? _valorTotal;
+    private decimal? _valorLitro;
+
+    private bool _painelLido;
+    private bool _corrigindoKm;
+    private int? _km;
+    private Posicao? _posicao;
+
+    private int UltimoKm => (Detalhe?.Abastecimentos.Select(a => a.Odometro) ?? []).Append(Uso.OdometroInicial).Max();
+
+    private decimal? PrecoLitro => _valorLitro is > 0 ? _valorLitro
+        : _litros is > 0 && _valorTotal is > 0 ? Math.Round(_valorTotal.Value / _litros.Value, 3) : null;
+
+    private async Task Voltar()
+    {
+        if (_passo == 1)
+            await OnFechar.InvokeAsync();
+        else
+            _passo--;
+    }
+
+    private async Task LerCupomAsync(IBrowserFile foto)
+    {
+        _lendo = true;
+        _erro = null;
+        try
+        {
+            using var imagem = await Localizacao.LerArquivoAsync(foto);
+            var leitura = await Api.LerComprovanteAsync(Uso.Id, imagem, "cupom.jpg", "image/jpeg");
+            _litros = leitura?.Litros;
+            _valorTotal = leitura?.ValorTotal;
+            _valorLitro = leitura?.ValorPorLitro;
+            _leuAlgo = _litros is not null || _valorTotal is not null;
+            _cupomLido = true;
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erro = $"Não consegui ler o cupom: {ex.Message}";
+        }
+        finally
+        {
+            _lendo = false;
+        }
+    }
+
+    private async Task LerPainelAsync(IBrowserFile foto)
+    {
+        _lendo = true;
+        _erro = null;
+        try
+        {
+            var posicao = Localizacao.ObterAsync();
+            using var imagem = await Localizacao.LerArquivoAsync(foto);
+            var leitura = await Api.LerPainelAsync(imagem, "painel.jpg", "image/jpeg", null, null, UltimoKm);
+            _posicao = await posicao;
+            _km = leitura?.OdometroLido;
+            _painelLido = true;
+            _corrigindoKm = false;
+            await JS.InvokeVoidAsync("cvVibrar", 40);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            _erro = $"Não consegui ler a foto: {ex.Message}";
+        }
+        finally
+        {
+            _lendo = false;
+        }
+    }
+
+    private async Task DigitarKmAsync()
+    {
+        _posicao = await Localizacao.ObterAsync();
+        _km = null;
+        _painelLido = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_litros is not > 0 || _valorTotal is not > 0 || _km is null)
+            return;
+
+        _salvando = true;
+        _erro = null;
+        try
+        {
+            await Api.AddAbastecimentoAsync(Uso.Id, new AddFuelEntryRequest(
+                _litros.Value, _valorTotal.Value, _km.Value, PrecoLitro, _posicao?.Lat, _posicao?.Lng));
+            await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
+            await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N2} L, R$ {_valorTotal:N2}.");
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = $"Não foi possível salvar: {ex.Message}";
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

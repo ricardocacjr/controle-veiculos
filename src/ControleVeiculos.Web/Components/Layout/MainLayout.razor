@@ -3,7 +3,14 @@
 @inject AuthState AuthState
 @inject NavigationManager Nav
 
-@if (!AuthState.IsAuthenticated)
+@if (!AuthState.Restaurado)
+{
+    @* Enquanto lê a sessão salva no aparelho — evita mandar pro login quem já está logado. *@
+    <div class="auth-screen">
+        <div class="loading-block auth-loading"><span class="spinner"></span> Abrindo...</div>
+    </div>
+}
+else if (!AuthState.IsAuthenticated || NaTelaDeAcesso)
 {
     <div class="auth-screen">
         @Body
@@ -13,26 +20,35 @@ else
 {
     <header class="app-topbar">
         <a class="app-brand" href="">
-            <span class="app-brand-logo"><Icon Name="car" Size="20" /></span>
-            <span>Controle de Veículos</span>
+            <Avatar UserId="AuthState.UserId" Nome="@AuthState.Nome" />
+            <span>@AuthState.PrimeiroNome</span>
         </a>
         <div class="app-user">
-            <span class="app-user-name">@AuthState.Email</span>
+            @if (AuthState.EhGestao && AuthState.EhMotorista)
+            {
+                <a class="app-admin-link" href="@(NaAdministracao ? "motorista/uso" : "usos")">@(NaAdministracao ? "Meu uso" : "Administração")</a>
+            }
             <button class="icon-btn" title="Sair" @onclick="SairAsync"><Icon Name="logout" Size="20" /></button>
         </div>
     </header>
 
-    <nav class="app-sidebar">
-        <NavMenu Variant="side" />
-    </nav>
+    @if (MostrarMenu)
+    {
+        <nav class="app-sidebar">
+            <NavMenu Variant="side" />
+        </nav>
+    }
 
-    <main class="app-main">
+    <main class="app-main @(MostrarMenu ? "" : "sem-abas")">
         @Body
     </main>
 
-    <nav class="app-tabbar">
-        <NavMenu Variant="tab" />
-    </nav>
+    @if (MostrarMenu)
+    {
+        <nav class="app-tabbar">
+            <NavMenu Variant="tab" />
+        </nav>
+    }
 }
 
 <div id="blazor-error-ui">
@@ -42,15 +58,42 @@ else
 </div>
 
 @code {
-    protected override void OnInitialized() => AuthState.Changed += OnAuthChanged;
+    private string Caminho => "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+
+    private bool NaTelaDeAcesso => Caminho is "/login" or "/primeiro-acesso";
+
+    private bool NaAdministracao => Caminho.StartsWith("/usos") && AuthState.EhGestao
+        || Caminho.StartsWith("/veiculos") || Caminho.StartsWith("/motoristas") || Caminho.StartsWith("/empresas");
+
+    // Motorista não tem menu nenhum (entra direto no "uso"); o menu é só da administração.
+    private bool MostrarMenu => AuthState.EhGestao && NaAdministracao;
+
+    protected override void OnInitialized()
+    {
+        AuthState.Changed += OnAuthChanged;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !AuthState.Restaurado)
+            await AuthState.RestaurarAsync();
+    }
 
     private void OnAuthChanged() => InvokeAsync(StateHasChanged);
 
-    private void SairAsync()
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        InvokeAsync(StateHasChanged);
+
+    private async Task SairAsync()
     {
-        AuthState.SignOut();
+        await AuthState.SairAsync();
         Nav.NavigateTo("/login");
     }
 
-    public void Dispose() => AuthState.Changed -= OnAuthChanged;
+    public void Dispose()
+    {
+        AuthState.Changed -= OnAuthChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

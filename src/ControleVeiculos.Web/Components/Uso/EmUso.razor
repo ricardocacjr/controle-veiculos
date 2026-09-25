@@ -1,0 +1,113 @@
+@using ControleVeiculos.Shared.UsageRecords
+@inject ControleVeiculosApiClient Api
+
+@switch (_tela)
+{
+    case Tela.Abastecer:
+        <Abastecimento Uso="Uso" Detalhe="_detalhe" OnFechar="Fechar" OnConcluido="ConcluidoAsync" />
+        break;
+
+    case Tela.Problema:
+        <Problema Uso="Uso" OnFechar="Fechar" OnConcluido="ConcluidoAsync" />
+        break;
+
+    case Tela.Chegada:
+        <Chegada Uso="Uso" Detalhe="_detalhe" OnFechar="Fechar" OnFinalizado="OnFinalizado" />
+        break;
+
+    default:
+        <div class="status-hero">
+            <span class="live-dot">Em uso · @Rotulos.Duracao(Uso.IniciadoEm)</span>
+            <div class="hero-plate">@Uso.VeiculoPlaca</div>
+            <div class="hero-sub">@(Uso.EmpresaNome is null ? "" : $"{Uso.EmpresaNome} · ")@Uso.Finalidade</div>
+            <div class="hero-grid">
+                <div>
+                    <div class="hero-label">Saiu às</div>
+                    <div class="hero-value">@Rotulos.Hora(Uso.IniciadoEm)</div>
+                </div>
+                <div>
+                    <div class="hero-label">Km de saída</div>
+                    <div class="hero-value">@Rotulos.Km(Uso.OdometroInicial)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3"><Mensagens Sucesso="@_aviso" /></div>
+
+        <div class="big-actions">
+            <button type="button" class="action-btn" @onclick="() => Abrir(Tela.Abastecer)">
+                <span class="action-icon tone-accent"><Icon Name="fuel" Size="30" /></span>
+                <span><span class="action-title">Abasteci</span><span class="action-sub">Foto do cupom e do painel</span></span>
+            </button>
+            <button type="button" class="action-btn" @onclick="() => Abrir(Tela.Problema)">
+                <span class="action-icon tone-danger"><Icon Name="alert" Size="30" /></span>
+                <span><span class="action-title">Tive um problema</span><span class="action-sub">Foto ou áudio contando o que houve</span></span>
+            </button>
+            <button type="button" class="action-btn primary" @onclick="() => Abrir(Tela.Chegada)">
+                <span class="action-icon"><Icon Name="flag" Size="30" /></span>
+                <span><span class="action-title">Cheguei</span><span class="action-sub">Foto do painel e pronto</span></span>
+            </button>
+        </div>
+
+        @if (_detalhe is { } d && (d.Abastecimentos.Count > 0 || d.Fotos.Count > 0 || d.NotasDeVoz.Count > 0))
+        {
+            <div class="counters">
+                @if (d.Abastecimentos.Count > 0)
+                {
+                    <span class="chip chip-warning"><Icon Name="fuel" Size="14" /> @d.Abastecimentos.Count abastecimento(s)</span>
+                }
+                @if (d.NotasDeVoz.Count > 0)
+                {
+                    <span class="chip"><Icon Name="mic" Size="14" /> @d.NotasDeVoz.Count áudio(s)</span>
+                }
+            </div>
+        }
+
+        <a class="link-discreto" href="usos">Minhas saídas</a>
+        break;
+}
+
+@code {
+    private enum Tela { Inicio, Abastecer, Problema, Chegada }
+
+    [Parameter, EditorRequired] public UsageRecordDto Uso { get; set; } = default!;
+    [Parameter] public string? AvisoInicial { get; set; }
+    [Parameter] public EventCallback<string> OnFinalizado { get; set; }
+
+    private Tela _tela;
+    private UsageRecordDetailDto? _detalhe;
+    private string? _aviso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _aviso = AvisoInicial;
+        await AtualizarDetalheAsync();
+    }
+
+    private async Task AtualizarDetalheAsync()
+    {
+        try
+        {
+            _detalhe = await Api.GetUsageRecordDetailAsync(Uso.Id);
+        }
+        catch (HttpRequestException)
+        {
+            // Os contadores são só informativos — sem eles a tela continua funcionando.
+        }
+    }
+
+    private void Abrir(Tela tela)
+    {
+        _aviso = null;
+        _tela = tela;
+    }
+
+    private void Fechar() => _tela = Tela.Inicio;
+
+    private async Task ConcluidoAsync(string mensagem)
+    {
+        _aviso = mensagem;
+        _tela = Tela.Inicio;
+        await AtualizarDetalheAsync();
+    }
+}

@@ -1,4 +1,5 @@
 @page "/motoristas"
+@using ControleVeiculos.Shared.Auth
 @inject ControleVeiculosApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Nav
@@ -7,41 +8,42 @@
 <PageTitle>Motoristas</PageTitle>
 
 <h1 class="page-title">Motoristas</h1>
-<p class="page-subtitle">Quem pode registrar uso dos veículos.</p>
+<p class="page-subtitle">Quem aparece na tela de entrada. Cada um entra com a própria foto e PIN de 6 números.</p>
 
 @if (AuthState.IsAuthenticated)
 {
     <div class="section-title">Novo motorista</div>
     <div class="card-app">
-        <EditForm Model="_newDriver" OnValidSubmit="HandleCreateAsync">
+        <EditForm Model="_novo" OnValidSubmit="CriarAsync">
             <div class="form-grid">
                 <div class="field">
                     <label>Nome</label>
-                    <InputText class="form-control" @bind-Value="_newDriver.Nome" />
+                    <InputText class="form-control" @bind-Value="_novo.Nome" placeholder="Ex.: Daniela" />
                 </div>
                 <div class="field">
-                    <label>CNH</label>
-                    <InputText class="form-control" @bind-Value="_newDriver.Cnh" inputmode="numeric" />
+                    <label>Usuário</label>
+                    <InputText class="form-control" @bind-Value="_novo.Login" autocapitalize="characters" placeholder="Ex.: DANI" />
                 </div>
                 <div class="field">
-                    <label>Telefone</label>
-                    <InputText class="form-control" @bind-Value="_newDriver.Telefone" inputmode="tel" />
+                    <label>PIN temporário</label>
+                    <InputText class="form-control" @bind-Value="_novo.Pin" inputmode="numeric" maxlength="6" />
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary btn-app mt-3" disabled="@_loading">
-                <Icon Name="plus" Size="20" /><span>Adicionar motorista</span>
+            <div class="field-hint">No primeiro acesso a pessoa digita esse PIN e cria o dela.</div>
+            <button type="submit" class="btn btn-primary btn-app mt-3" disabled="@_ocupado">
+                <Icon Name="plus" Size="20" /><span>Cadastrar motorista</span>
             </button>
         </EditForm>
     </div>
 
-    <div class="mt-3"><Mensagens Erro="@_error" /></div>
+    <div class="mt-3"><Mensagens Erro="@_erro" Sucesso="@_ok" /></div>
 
     <div class="section-title">Cadastrados</div>
-    @if (_drivers is null)
+    @if (_perfis is null)
     {
         <div class="loading-block"><span class="spinner"></span> Carregando...</div>
     }
-    else if (_drivers.Count == 0)
+    else if (_perfis.Count == 0)
     {
         <div class="empty-state">
             <div class="empty-icon"><Icon Name="users" Size="26" /></div>
@@ -51,30 +53,49 @@
     else
     {
         <div class="list-card">
-            @foreach (var driver in _drivers)
+            @foreach (var p in _perfis)
             {
                 <div class="list-item">
-                    <span class="avatar">@Iniciais(driver.Nome)</span>
+                    <label class="position-relative" style="cursor:pointer" title="Trocar foto">
+                        <InputFile class="file-hidden" accept="image/*" OnChange="@(e => TrocarFotoAsync(p, e))" />
+                        <Avatar UserId="p.UserId" Nome="@p.Nome" Versao="@Versao(p)" TemFoto="@(p.TemFoto || _versoes.ContainsKey(p.UserId) ? (bool?)null : false)" Class="list-avatar" />
+                    </label>
                     <span class="list-item-main">
-                        <span class="list-item-title d-block">@driver.Nome</span>
-                        <span class="list-item-sub d-block">
-                            CNH @driver.Cnh@(driver.CnhValidade is { } v ? $" · válida até {v:dd/MM/yyyy}" : "")@(string.IsNullOrWhiteSpace(driver.Telefone) ? "" : $" · {driver.Telefone}")
+                        <span class="list-item-title d-block">@p.Nome</span>
+                        <span class="list-item-sub d-block" style="white-space:normal">
+                            Usuário @p.Login
+                            @if (p.PrecisaDefinirPin)
+                            {
+                                <span class="chip chip-warning ms-1">aguardando 1º acesso</span>
+                            }
+                            @if (p.EhAdmin)
+                            {
+                                <span class="chip chip-primary ms-1">Admin</span>
+                            }
                         </span>
                     </span>
                     <span class="list-item-actions">
-                        <button class="btn-icon danger" title="Remover" @onclick="() => HandleDeleteAsync(driver)"><Icon Name="trash" Size="18" /></button>
+                        <button class="btn-icon" title="Redefinir PIN" @onclick="() => RedefinirPinAsync(p)"><Icon Name="lock" Size="18" /></button>
+                        <button class="btn-icon" title="@(p.EhAdmin ? "Tirar Admin" : "Tornar Admin")" @onclick="() => AlternarAdminAsync(p)"><Icon Name="user" Size="18" /></button>
                     </span>
                 </div>
             }
         </div>
+        <div class="field-hint mt-2">Toque na foto para trocar. 🔒 cria um PIN temporário novo (esqueceu o PIN).</div>
     }
 }
 
+<style>
+    .list-avatar { width: 46px; height: 46px; border-radius: 14px; font-size: 17px; }
+</style>
+
 @code {
-    private List<ControleVeiculos.Shared.Drivers.DriverDto>? _drivers;
-    private string? _error;
-    private bool _loading;
-    private readonly NewDriverModel _newDriver = new();
+    private List<PerfilDto>? _perfis;
+    private readonly Dictionary<Guid, string> _versoes = [];
+    private string? _erro;
+    private string? _ok;
+    private bool _ocupado;
+    private readonly NovoModel _novo = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -84,70 +105,107 @@
             return;
         }
 
-        await LoadDriversAsync();
+        await CarregarAsync();
     }
 
-    private async Task LoadDriversAsync()
+    private string? Versao(PerfilDto p) => _versoes.TryGetValue(p.UserId, out var v) ? v : p.FotoVersao;
+
+    private async Task CarregarAsync()
     {
         try
         {
-            _drivers = (await Api.GetDriversAsync()).ToList();
+            _perfis = (await Api.GetPerfisAsync()).ToList();
         }
         catch (HttpRequestException)
         {
-            _error = "Não foi possível carregar os motoristas.";
-            _drivers = [];
+            _erro = "Não foi possível carregar os motoristas.";
+            _perfis = [];
         }
     }
 
-    private async Task HandleCreateAsync()
+    private async Task CriarAsync()
     {
-        _loading = true;
-        _error = null;
+        _ocupado = true;
+        _erro = _ok = null;
         try
         {
-            var request = new ControleVeiculos.Shared.Drivers.CreateDriverRequest(
-                _newDriver.Nome, _newDriver.Cnh, null, _newDriver.Telefone, null);
-            await Api.CreateDriverAsync(request);
-            _newDriver.Nome = string.Empty;
-            _newDriver.Cnh = string.Empty;
-            _newDriver.Telefone = null;
-            await LoadDriversAsync();
+            var criado = await Api.CriarMotoristaAsync(new CriarMotoristaRequest(_novo.Nome, _novo.Login, _novo.Pin));
+            _ok = $"{criado?.Nome} cadastrado. Usuário {criado?.Login}, PIN temporário {_novo.Pin}.";
+            _novo.Nome = _novo.Login = "";
+            _novo.Pin = "123456";
+            await CarregarAsync();
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Não foi possível adicionar o motorista: {ex.Message}";
+            _erro = ex.Message;
         }
         finally
         {
-            _loading = false;
+            _ocupado = false;
         }
     }
 
-    private async Task HandleDeleteAsync(ControleVeiculos.Shared.Drivers.DriverDto driver)
+    private async Task TrocarFotoAsync(PerfilDto p, InputFileChangeEventArgs e)
     {
-        var confirmado = await JS.InvokeAsync<bool>("confirm", $"Remover o motorista {driver.Nome}?");
-        if (!confirmado)
-            return;
-
+        _erro = _ok = null;
         try
         {
-            await Api.DeleteDriverAsync(driver.Id);
-            await LoadDriversAsync();
+            var reduzida = await e.File.RequestImageFileAsync("image/jpeg", 320, 320);
+            using var foto = await Localizacao.LerArquivoAsync(reduzida, 400 * 1024);
+            await Api.EnviarFotoPerfilAsync(p.UserId, foto, "image/jpeg");
+            _versoes[p.UserId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+            _ok = $"Foto de {p.Nome} atualizada.";
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
-            _error = "Não foi possível remover o motorista.";
+            _erro = $"Não foi possível trocar a foto: {ex.Message}";
         }
     }
 
-    private static string Iniciais(string nome) =>
-        string.Concat(nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
-
-    private class NewDriverModel
+    private async Task RedefinirPinAsync(PerfilDto p)
     {
-        public string Nome { get; set; } = string.Empty;
-        public string Cnh { get; set; } = string.Empty;
-        public string? Telefone { get; set; }
+        var pin = await JS.InvokeAsync<string?>("prompt", $"PIN temporário para {p.Nome} (6 números):", "123456");
+        if (pin is null)
+            return;
+
+        _erro = _ok = null;
+        try
+        {
+            await Api.RedefinirPinAsync(p.UserId, pin.Trim());
+            _ok = $"PIN de {p.Nome} redefinido para {pin.Trim()}. No próximo acesso ele(a) cria um novo.";
+            await CarregarAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = ex.Message;
+        }
+    }
+
+    private async Task AlternarAdminAsync(PerfilDto p)
+    {
+        var confirmar = await JS.InvokeAsync<bool>("confirm", p.EhAdmin
+            ? $"Tirar o acesso de administrador de {p.Nome}?"
+            : $"Tornar {p.Nome} administrador? Ele(a) poderá cadastrar motoristas, veículos e ver todos os usos.");
+        if (!confirmar)
+            return;
+
+        _erro = _ok = null;
+        try
+        {
+            await Api.DefinirAdminAsync(p.UserId, !p.EhAdmin);
+            _ok = p.EhAdmin ? $"{p.Nome} não é mais administrador." : $"{p.Nome} agora é administrador (vale no próximo login).";
+            await CarregarAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = ex.Message;
+        }
+    }
+
+    private class NovoModel
+    {
+        public string Nome { get; set; } = "";
+        public string Login { get; set; } = "";
+        public string Pin { get; set; } = "123456";
     }
 }

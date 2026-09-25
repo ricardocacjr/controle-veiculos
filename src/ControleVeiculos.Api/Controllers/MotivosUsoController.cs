@@ -7,9 +7,9 @@ using ControleVeiculos.Shared.UsageRecords;
 namespace ControleVeiculos.Api.Controllers;
 
 /// <summary>
-/// Catálogo de finalidades de uso — só leitura e limpeza aqui. Não tem POST porque a lista
-/// cresce sozinha: toda vez que um uso é iniciado com uma finalidade nova (ver
-/// UsageRecordsController.Start), ela entra automaticamente no catálogo.
+/// Catálogo de finalidades de uso. Cresce sozinho — toda finalidade nova digitada numa saída
+/// entra no catálogo (ver UsageRecordsController.Start) — mas o Admin também pode deixar
+/// motivos prontos, pra aparecerem como botão já no primeiro uso.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -21,6 +21,19 @@ public class MotivosUsoController(IMotivoUsoRepository motivoUsoRepository) : Co
     {
         var motivos = await motivoUsoRepository.ListAsync(ct);
         return Ok(motivos.Select(m => new MotivoUsoDto(m.Id, m.Nome)));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
+    public async Task<IActionResult> Create(CreateMotivoUsoRequest request, CancellationToken ct)
+    {
+        var nome = request.Nome.Trim();
+        if (nome.Length == 0)
+            return BadRequest("Informe o motivo.");
+
+        await motivoUsoRepository.EnsureExistsAsync(nome, ct);
+        await motivoUsoRepository.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     [HttpDelete("{id:guid}")]

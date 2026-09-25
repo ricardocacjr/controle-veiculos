@@ -1,0 +1,27 @@
+@inject BaseOperacional Base
+
+@if (NaBase)
+{
+    <span class="place-pill chip-success"><Icon Name="check" Size="18" /> Na @Base.Nome</span>
+    <div class="muted mt-2" style="font-size:14px">@Base.Endereco</div>
+}
+else if (Posicao is { Ok: true } p)
+{
+    @if (!string.IsNullOrWhiteSpace(Endereco))
+    {
+        <div style="font-weight:700">@Endereco</div>
+    }
+    <MapaMini Latitude="p.Lat!.Value" Longitude="p.Lng!.Value" />
+}
+else
+{
+    <div class="notice notice-info mb-0">
+        Localização não capturada@(Posicao?.Error is { } e ? $": {e}" : ".") Tudo bem, dá pra continuar.
+    </div>
+}
+
+@code {
+    [Parameter] public bool NaBase { get; set; }
+    [Parameter] public string? Endereco { get; set; }
+    [Parameter] public Posicao? Posicao { get; set; }
+}
