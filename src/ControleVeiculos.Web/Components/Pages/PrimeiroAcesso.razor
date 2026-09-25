@@ -40,7 +40,8 @@
             <div class="auth-card mt-4">
                 <CameraGrande Titulo="Tirar uma selfie" Subtitulo="Ou escolher uma foto da galeria"
                               Icone="user" Captura="user" LadoMaximo="320" TextoOcupado="Enviando..."
-                              Ocupado="@_salvando" OnFoto="EnviarFotoAsync" />
+                              Url="@($"api/perfis/{AuthState.UserId}/foto")" Metodo="PUT"
+                              OnInicio="() => _erroFoto = null" OnResultado="FotoEnviada" />
                 <Mensagens Erro="@_erroFoto" />
                 <button type="button" class="btn btn-soft btn-app mt-3" @onclick="Concluir">
                     @(_fotoEnviada ? "Continuar" : "Agora não")
@@ -133,31 +134,16 @@
         }
     }
 
-    private async Task EnviarFotoAsync(IBrowserFile foto)
+    private void FotoEnviada(ResultadoEnvio resultado)
     {
-        if (AuthState.UserId is not { } id)
+        if (!resultado.Ok)
+        {
+            _erroFoto = $"Não foi possível enviar a foto: {resultado.Mensagem}";
             return;
+        }
 
-        _salvando = true;
-        _erroFoto = null;
-        try
-        {
-            await using var stream = foto.OpenReadStream(maxAllowedSize: 400 * 1024);
-            using var memoria = new MemoryStream();
-            await stream.CopyToAsync(memoria);
-            memoria.Position = 0;
-            await Api.EnviarFotoPerfilAsync(id, memoria, "image/jpeg");
-            _fotoEnviada = true;
-            _versaoFoto = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _erroFoto = $"Não foi possível enviar a foto: {ex.Message}";
-        }
-        finally
-        {
-            _salvando = false;
-        }
+        _fotoEnviada = true;
+        _versaoFoto = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
     }
 
     private void Concluir() => Nav.NavigateTo("/");

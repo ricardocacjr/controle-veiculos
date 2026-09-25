@@ -51,6 +51,12 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddControllers();
 
+// O painel (outro domínio) envia fotos/áudio direto do navegador pra cá — no iPhone a conexão do
+// Blazor cai enquanto a câmera está aberta, então o upload não pode passar por ela.
+var origensPermitidas = builder.Configuration.GetSection("Cors:Origens").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(origensPermitidas).AllowAnyHeader().AllowAnyMethod()));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -76,6 +82,7 @@ app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseHttpsRedirection();
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 

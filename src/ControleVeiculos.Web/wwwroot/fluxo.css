@@ -525,5 +525,44 @@
     white-space: nowrap;
 }
 
+/* ---------- Reconexão (Blazor) ---------- */
+
+#components-reconnect-modal { display: none; }
+
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: calc(env(safe-area-inset-top) + 70px);
+    background: rgba(11, 31, 58, .25);
+}
+
+.reconnect-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
+    font-weight: 700;
+    color: var(--text);
+}
+
+    .reconnect-card .reconnect-falhou { display: none; }
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-falhou,
+#components-reconnect-modal.components-reconnect-rejected .reconnect-falhou { display: inline-block; }
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-texto,
+#components-reconnect-modal.components-reconnect-failed .spinner,
+#components-reconnect-modal.components-reconnect-rejected .reconnect-texto,
+#components-reconnect-modal.components-reconnect-rejected .spinner { display: none; }
+
 /* Sem abas no rodapé (motorista) o conteúdo não precisa do espaço extra embaixo. */
 .app-main.sem-abas { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }

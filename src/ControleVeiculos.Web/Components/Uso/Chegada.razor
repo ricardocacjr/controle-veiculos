@@ -14,7 +14,8 @@
     @if (!_fotoLida)
     {
         <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. Essa foto é obrigatória para finalizar."
-                      TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+                      TextoOcupado="Lendo o painel..." Url="@($"api/usagerecords/{Uso.Id}/fotos")" Campos="CamposFoto"
+                      Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
         <Mensagens Erro="@_erro" />
     }
     else
@@ -100,7 +101,6 @@ else
     [Parameter] public EventCallback<string> OnFinalizado { get; set; }
 
     private int _passo = 1;
-    private bool _lendo;
     private bool _salvando;
     private bool _fotoLida;
     private bool _corrigindoKm;
@@ -129,31 +129,26 @@ else
             _passo = 1;
     }
 
-    private async Task LerPainelAsync(IBrowserFile foto)
+    // Sobe como foto do uso (tipo OdometroFinal): o servidor exige essa foto pra finalizar e já lê
+    // o km usando o km de saída como referência.
+    private static readonly IReadOnlyDictionary<string, string?> CamposFoto = new Dictionary<string, string?>
     {
-        _lendo = true;
-        _erro = null;
-        try
+        ["tipo"] = nameof(VehiclePhotoType.OdometroFinal),
+    };
+
+    private async Task PainelLidoAsync(ResultadoEnvio resultado)
+    {
+        if (!resultado.Ok)
         {
-            var posicao = Localizacao.ObterAsync();
-            using var imagem = await Localizacao.LerArquivoAsync(foto);
-            // Sobe como foto do uso (tipo OdometroFinal): o servidor exige essa foto pra finalizar
-            // e já lê o km usando o km de saída como referência.
-            var enviada = await Api.UploadFotoAsync(Uso.Id, imagem, "painel-chegada.jpg", "image/jpeg", VehiclePhotoType.OdometroFinal, null);
-            _km = enviada?.OdometroLido;
-            _posicao = await posicao;
-            _fotoLida = true;
-            _corrigindoKm = false;
-            await JS.InvokeVoidAsync("cvVibrar", 40);
+            _erro = $"Não consegui enviar a foto: {resultado.Mensagem}";
+            return;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _erro = $"Não consegui enviar a foto: {ex.Message}";
-        }
-        finally
-        {
-            _lendo = false;
-        }
+
+        _km = resultado.Ler<VehiclePhotoDto>()?.OdometroLido;
+        _posicao = resultado.Posicao;
+        _fotoLida = true;
+        _corrigindoKm = false;
+        try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
     private async Task FinalizarAsync()
@@ -169,7 +164,7 @@ else
             await JS.InvokeVoidAsync("cvVibrar", new[] { 80, 60, 80 });
             await OnFinalizado.InvokeAsync($"Você rodou {_km.Value - Uso.OdometroInicial:N0} km.");
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _erro = $"Não foi possível finalizar: {ex.Message}";
         }

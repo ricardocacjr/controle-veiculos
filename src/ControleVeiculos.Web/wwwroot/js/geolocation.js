@@ -16,10 +16,17 @@ window.getGeolocation = () => {
             return;
         }
 
+        // O "timeout" do getCurrentPosition só começa a contar DEPOIS que a pessoa responde ao
+        // pedido de permissão — se o aviso ficar sem resposta, a promessa nunca terminava e a tela
+        // ficava presa em "Lendo...". Esse limite próprio garante que sempre termina.
+        let terminou = false;
+        const fim = (r) => { if (!terminou) { terminou = true; resolve(r); } };
+        setTimeout(() => fim({ lat: null, lng: null, error: "a localização demorou demais (confira se o Safari tem permissão de localização)." }), 12000);
+
         navigator.geolocation.getCurrentPosition(
-            pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, error: null }),
-            err => resolve({ lat: null, lng: null, error: `Geolocalização falhou: ${err.message} (código ${err.code}).` }),
-            { timeout: 8000, maximumAge: 60000 }
+            pos => fim({ lat: pos.coords.latitude, lng: pos.coords.longitude, error: null }),
+            err => fim({ lat: null, lng: null, error: `Geolocalização falhou: ${err.message} (código ${err.code}).` }),
+            { timeout: 8000, maximumAge: 60000, enableHighAccuracy: false }
         );
     });
 };

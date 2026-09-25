@@ -75,7 +75,7 @@ else
             await AuthState.SairAsync();
             Nav.NavigateTo("/login");
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _erro = $"Não foi possível carregar: {ex.Message}";
         }

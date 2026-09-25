@@ -19,6 +19,9 @@ builder.Services.AddRazorComponents()
 builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions>(options =>
 {
     options.DetailedErrors = builder.Environment.IsDevelopment();
+    // Celular sai do app (câmera, WhatsApp) e a conexão cai; guarda a tela do motorista por mais
+    // tempo pra ele voltar exatamente de onde parou (padrão: 3 min).
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(15);
 });
 
 // O InputFile (upload de foto/áudio na tela do motorista) transfere o arquivo do navegador pro

@@ -1,9 +1,15 @@
-@* Botão de câmera gigante (o <label> inteiro abre a câmera). Já devolve a foto reduzida pelo
-   próprio navegador — foto de celular tem 3-5 MB, isso sobe ~300 KB e fica bem mais rápido no 4G. *@
-<label class="camera-cta @Tom @(Compacto ? "compact" : "") @(Ocupado ? "is-busy" : "")">
-    <InputFile class="file-hidden" OnChange="AoEscolherAsync" accept="image/*" capture="@Captura" disabled="@Ocupado" />
+@implements IDisposable
+@inject IJSRuntime JS
+@inject AuthState AuthState
+@inject ControleVeiculosApiClient Api
+
+@* Botão de câmera gigante (o <label> inteiro abre a câmera). O envio é feito pelo próprio
+   navegador direto pra Api (cvCamera em app.js) — ver o porquê lá: no iPhone a conexão do
+   painel cai enquanto a câmera está aberta. Aqui só chegam o início e o resultado. *@
+<label class="camera-cta @Tom @(Compacto ? "compact" : "") @(_ocupado ? "is-busy" : "")">
+    <input type="file" class="file-hidden" accept="image/*" capture="@Captura" @ref="_input" />
     <span class="camera-icon">
-        @if (Ocupado)
+        @if (_ocupado)
         {
             <span class="spinner"></span>
         }
@@ -13,8 +19,12 @@
         }
     </span>
     <span>
-        <span class="camera-title d-block">@(Ocupado ? TextoOcupado : Titulo)</span>
-        @if (!string.IsNullOrEmpty(Subtitulo) && !Ocupado)
+        <span class="camera-title d-block">@(_ocupado ? TextoOcupado : Titulo)</span>
+        @if (_ocupado)
+        {
+            <span class="camera-sub d-block">Pode levar alguns segundos</span>
+        }
+        else if (!string.IsNullOrEmpty(Subtitulo))
         {
             <span class="camera-sub d-block">@Subtitulo</span>
         }
@@ -28,23 +38,61 @@
     [Parameter] public string Icone { get; set; } = "camera";
     [Parameter] public string? Tom { get; set; }
     [Parameter] public bool Compacto { get; set; }
-    [Parameter] public bool Ocupado { get; set; }
     [Parameter] public string Captura { get; set; } = "environment";
     [Parameter] public int LadoMaximo { get; set; } = 1600;
-    [Parameter] public EventCallback<IBrowserFile> OnFoto { get; set; }
 
-    private async Task AoEscolherAsync(InputFileChangeEventArgs e)
+    /// <summary>Endpoint da Api (relativo), ex.: "api/usagerecords/ler-painel".</summary>
+    [Parameter, EditorRequired] public string Url { get; set; } = "";
+    [Parameter] public string Metodo { get; set; } = "POST";
+    [Parameter] public IReadOnlyDictionary<string, string?>? Campos { get; set; }
+
+    /// <summary>Pega o GPS junto com a foto (vem no resultado).</summary>
+    [Parameter] public bool Localizacao { get; set; }
+    /// <summary>Também manda latitude/longitude como campos do formulário.</summary>
+    [Parameter] public bool EnviarLocalizacao { get; set; }
+
+    [Parameter] public EventCallback OnInicio { get; set; }
+    [Parameter] public EventCallback<ResultadoEnvio> OnResultado { get; set; }
+
+    private ElementReference _input;
+    private DotNetObjectReference<CameraGrande>? _self;
+    private bool _ocupado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        IBrowserFile arquivo = e.File;
+        _self ??= DotNetObjectReference.Create(this);
         try
         {
-            arquivo = await e.File.RequestImageFileAsync("image/jpeg", LadoMaximo, LadoMaximo);
+            // Todo render reenvia a configuração (campos como o km de referência mudam).
+            await JS.InvokeVoidAsync("cvCamera.configurar", _input, _self, new
+            {
+                url = Api.UrlApi(Url),
+                metodo = Metodo,
+                token = AuthState.Token,
+                campos = Campos,
+                geo = Localizacao,
+                enviarGeo = EnviarLocalizacao,
+                lado = LadoMaximo,
+            });
         }
-        catch (Exception)
-        {
-            // Navegador sem suporte a redimensionar (raro) — segue com o arquivo original.
-        }
-
-        await OnFoto.InvokeAsync(arquivo);
+        catch (JSDisconnectedException) { }
     }
+
+    [JSInvokable]
+    public async Task Inicio()
+    {
+        _ocupado = true;
+        StateHasChanged();
+        await OnInicio.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public async Task Resultado(ResultadoEnvio resultado)
+    {
+        _ocupado = false;
+        StateHasChanged();
+        await OnResultado.InvokeAsync(resultado);
+    }
+
+    public void Dispose() => _self?.Dispose();
 }

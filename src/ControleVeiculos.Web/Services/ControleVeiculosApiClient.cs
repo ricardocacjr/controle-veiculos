@@ -45,6 +45,9 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response!.Content.ReadFromJsonAsync<List<PerfilDto>>() ?? [];
     }
 
+    /// <summary>URL absoluta de um endpoint da Api — pros envios feitos direto pelo navegador.</summary>
+    public string UrlApi(string relativa) => new Uri(http.BaseAddress!, relativa).ToString();
+
     /// <summary>URL absoluta da foto (o navegador busca direto da Api). <paramref name="versao"/> fura o cache após trocar a foto.</summary>
     public string FotoPerfilUrl(Guid userId, string? versao = null) =>
         new Uri(http.BaseAddress!, $"api/perfis/{userId}/foto{(versao is null ? "" : $"?v={versao}")}").ToString();

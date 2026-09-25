@@ -89,7 +89,8 @@ else
             @if (!_fotoLida)
             {
                 <CameraGrande Titulo="Tirar foto do painel" Subtitulo="Mostrando o km (odômetro). O app lê o número e pega o local sozinho."
-                              TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+                              TextoOcupado="Lendo o painel..." Url="api/usagerecords/ler-painel" Campos="CamposPainel"
+                              Localizacao="true" EnviarLocalizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
                 <Mensagens Erro="@_erro" />
                 <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarSemFotoAsync">Sem câmera? Digitar o km</button>
             }
@@ -206,7 +207,6 @@ else
     private bool _digitandoMotivo;
     private string? _motivoDigitado;
 
-    private bool _lendo;
     private bool _fotoLida;
     private bool _corrigindoKm;
     private int? _km;
@@ -264,7 +264,7 @@ else
             var ultimoVeiculo = historico.Result.OrderByDescending(u => u.IniciadoEm).FirstOrDefault()?.VeiculoId;
             _veiculo = _veiculos.FirstOrDefault(v => v.Id == ultimoVeiculo) ?? _veiculos.FirstOrDefault();
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _erroCarga = $"Não foi possível carregar: {ex.Message}";
         }
@@ -287,38 +287,32 @@ else
         _passo = 3;
     }
 
-    private async Task LerPainelAsync(IBrowserFile foto)
+    private IReadOnlyDictionary<string, string?> CamposPainel => new Dictionary<string, string?>
     {
-        _lendo = true;
-        _erro = null;
-        try
-        {
-            var posicao = Localizacao.ObterAsync();
-            using var imagem = await Localizacao.LerArquivoAsync(foto);
-            _posicao = await posicao;
-            _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
+        ["kmReferencia"] = KmReferencia > 0 ? KmReferencia.ToString() : null,
+        ["veiculoId"] = _veiculo?.Id.ToString(),
+    };
 
-            // Na base não precisa de endereço (e economiza a consulta ao Nominatim).
-            var leitura = await Api.LerPainelAsync(imagem, "painel.jpg", "image/jpeg",
-                _naBase ? null : _posicao.Lat, _naBase ? null : _posicao.Lng, KmReferencia > 0 ? KmReferencia : null, _veiculo?.Id);
-
-            _km = leitura?.OdometroLido;
-            _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : leitura?.EnderecoSugerido;
-            if (!_naBase && _origem is null && _posicao.Ok)
-                _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
-
-            _fotoLida = true;
-            _corrigindoKm = false;
-            await JS.InvokeVoidAsync("cvVibrar", 40);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
+    private async Task PainelLidoAsync(ResultadoEnvio resultado)
+    {
+        if (!resultado.Ok)
         {
-            _erro = $"Não consegui ler a foto: {ex.Message}. Tente de novo.";
+            _erro = $"Não consegui ler a foto: {resultado.Mensagem}";
+            return;
         }
-        finally
-        {
-            _lendo = false;
-        }
+
+        var leitura = resultado.Ler<PainelReadingDto>();
+        _posicao = resultado.Posicao;
+        _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
+        _km = leitura?.OdometroLido;
+        _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : leitura?.EnderecoSugerido;
+        _fotoLida = true;
+        _corrigindoKm = false;
+        StateHasChanged();
+
+        if (!_naBase && _origem is null && _posicao.Ok)
+            _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
+        try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
     private async Task DigitarSemFotoAsync()
@@ -351,7 +345,7 @@ else
             await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
             await OnIniciado.InvokeAsync();
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _erro = $"Não foi possível registrar a saída: {ex.Message}";
         }

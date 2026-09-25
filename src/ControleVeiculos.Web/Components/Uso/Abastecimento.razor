@@ -13,7 +13,9 @@
         @if (!_cupomLido)
         {
             <CameraGrande Titulo="Fotografar o cupom" Subtitulo="Pegue o cupom inteiro, bem de perto. O app lê litros e valor."
-                          Tom="tone-fuel" TextoOcupado="Lendo o cupom..." LadoMaximo="2000" Ocupado="@_lendo" OnFoto="LerCupomAsync" />
+                          Tom="tone-fuel" TextoOcupado="Lendo o cupom..." LadoMaximo="2000"
+                          Url="@($"api/usagerecords/{Uso.Id}/abastecimentos/ler-comprovante")"
+                          OnInicio="() => _erro = null" OnResultado="CupomLidoAsync" />
             <Mensagens Erro="@_erro" />
             <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="() => _cupomLido = true">Sem cupom? Digitar os valores</button>
         }
@@ -51,7 +53,8 @@
         @if (!_painelLido)
         {
             <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. O local do posto é registrado sozinho."
-                          TextoOcupado="Lendo o painel..." Ocupado="@_lendo" OnFoto="LerPainelAsync" />
+                          TextoOcupado="Lendo o painel..." Url="api/usagerecords/ler-painel" Campos="CamposPainel"
+                          Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
             <Mensagens Erro="@_erro" />
             <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarKmAsync">Sem câmera? Digitar o km</button>
         }
@@ -130,7 +133,6 @@
     [Parameter] public EventCallback<string> OnConcluido { get; set; }
 
     private int _passo = 1;
-    private bool _lendo;
     private bool _salvando;
     private string? _erro;
 
@@ -158,54 +160,41 @@
             _passo--;
     }
 
-    private async Task LerCupomAsync(IBrowserFile foto)
+    private IReadOnlyDictionary<string, string?> CamposPainel => new Dictionary<string, string?>
     {
-        _lendo = true;
-        _erro = null;
-        try
+        ["kmReferencia"] = UltimoKm.ToString(),
+    };
+
+    private async Task CupomLidoAsync(ResultadoEnvio resultado)
+    {
+        if (!resultado.Ok)
         {
-            using var imagem = await Localizacao.LerArquivoAsync(foto);
-            var leitura = await Api.LerComprovanteAsync(Uso.Id, imagem, "cupom.jpg", "image/jpeg");
-            _litros = leitura?.Litros;
-            _valorTotal = leitura?.ValorTotal;
-            _valorLitro = leitura?.ValorPorLitro;
-            _leuAlgo = _litros is not null || _valorTotal is not null;
-            _cupomLido = true;
-            await JS.InvokeVoidAsync("cvVibrar", 40);
+            _erro = $"Não consegui ler o cupom: {resultado.Mensagem}";
+            return;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _erro = $"Não consegui ler o cupom: {ex.Message}";
-        }
-        finally
-        {
-            _lendo = false;
-        }
+
+        var leitura = resultado.Ler<FuelReceiptReadingDto>();
+        _litros = leitura?.Litros;
+        _valorTotal = leitura?.ValorTotal;
+        _valorLitro = leitura?.ValorPorLitro;
+        _leuAlgo = _litros is not null || _valorTotal is not null;
+        _cupomLido = true;
+        try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
-    private async Task LerPainelAsync(IBrowserFile foto)
+    private async Task PainelLidoAsync(ResultadoEnvio resultado)
     {
-        _lendo = true;
-        _erro = null;
-        try
+        if (!resultado.Ok)
         {
-            var posicao = Localizacao.ObterAsync();
-            using var imagem = await Localizacao.LerArquivoAsync(foto);
-            var leitura = await Api.LerPainelAsync(imagem, "painel.jpg", "image/jpeg", null, null, UltimoKm);
-            _posicao = await posicao;
-            _km = leitura?.OdometroLido;
-            _painelLido = true;
-            _corrigindoKm = false;
-            await JS.InvokeVoidAsync("cvVibrar", 40);
+            _erro = $"Não consegui ler a foto: {resultado.Mensagem}";
+            return;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _erro = $"Não consegui ler a foto: {ex.Message}";
-        }
-        finally
-        {
-            _lendo = false;
-        }
+
+        _km = resultado.Ler<PainelReadingDto>()?.OdometroLido;
+        _posicao = resultado.Posicao;
+        _painelLido = true;
+        _corrigindoKm = false;
+        try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
     private async Task DigitarKmAsync()
@@ -229,7 +218,7 @@
             await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
             await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N2} L, R$ {_valorTotal:N2}.");
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _erro = $"Não foi possível salvar: {ex.Message}";
         }
