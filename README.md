@@ -94,11 +94,32 @@ origem automaticamente ao registrar saída, e o iOS Safari bloqueia essa API for
 seguro (HTTPS). Rodando local por IP/HTTP simples esse recurso falhava silenciosamente — o Render
 resolve isso de vez, já que serve tudo com TLS.
 
-Como o app não guarda foto/áudio de forma persistente (decisão deliberada — ver "Limitações
-conhecidas"), a base de produção começa vazia e foi populada à parte do banco local de
-desenvolvimento: veículo (`XYZ9A88`), empresas (Voglio/OAK/Uso Pessoal) e os motoristas de login
-curto (DANI/ERICK/JONATHAN/JOSLEY/RICARDO/GIL, senha `senha123`) foram recriados direto contra a
-Api de produção.
+A base de produção foi populada à parte do banco local de desenvolvimento: veículo (`XYZ9A88`),
+empresas (Voglio/OAK/Uso Pessoal), motivos e os motoristas DANI/ERICK/JONATHAN/JOSLEY/RICARDO/GIL.
+
+### Entrada no app (motoristas)
+
+Tela de perfis com foto (estilo Netflix) → **PIN de 6 números**. O Admin cadastra o motorista em
+`/motoristas` com um PIN temporário (padrão `123456`); no primeiro acesso o app obriga a criar o
+PIN próprio e oferece tirar uma selfie pro perfil. A sessão fica lembrada no aparelho
+(`localStorage`, token JWT de 30 dias — `Jwt__ExpirationMinutes=43200` no Render), então abrir o
+app pelo ícone da tela de início já cai direto no uso. "Esqueci o PIN" = o Admin gera outro
+temporário (🔒 na lista de motoristas). Cadastro de contas é **só pelo Admin** (antes o
+`/api/auth/register` era aberto). Em banco novo, `BootstrapAdmin__Email`/`BootstrapAdmin__Senha`
+criam o primeiro Admin. Admin/gestor sem perfil de motorista entram por "Acesso do administrador"
+(e-mail + senha). RICARDO é motorista e Admin.
+
+### Fluxo do motorista
+
+Sem menu: logou → **Nova saída** em 4 passos (empresa → motivo → foto do painel → SAIR). A foto
+do painel preenche o km (Google Vision, usando o último km do carro como referência pra ignorar
+relógio/autonomia) e a origem (GPS; perto da base vira "Base"). Não existe destino: toda saída
+começa e termina na **base** (seção `Base` do `appsettings.json` do Web — Rua Baldur Magnus
+Grubba, 2939, raio de 300 m). **Em uso**, três botões: *Abasteci* (foto do cupom → litros/valor;
+foto do painel → km; local vira ponto no mapa), *Tive um problema* (foto, ou áudio gravado no
+próprio app em WAV 16 kHz — o iPhone grava AAC, que o Google Speech v1 não aceita) e *Cheguei*
+(foto do painel **obrigatória**, validada no servidor; avisa se não estiver na base). Link
+discreto "Minhas saídas" pro histórico.
 
 Sem o ping, a primeira requisição depois de o Render dormir volta 502 por alguns segundos; o login
 do painel tenta de novo sozinho e, se ainda falhar, avisa que o servidor está iniciando.
