@@ -6,8 +6,22 @@
 @* Botão de câmera gigante (o <label> inteiro abre a câmera). O envio é feito pelo próprio
    navegador direto pra Api (cvCamera em app.js) — ver o porquê lá: no iPhone a conexão do
    painel cai enquanto a câmera está aberta. Aqui só chegam o início e o resultado. *@
+@if (ChildContent is not null)
+{
+    @* Aparência livre (ex.: a própria foto do perfil vira o botão, na lista de motoristas). *@
+    <label class="foto-trigger @(_ocupado ? "is-busy" : "")" title="@Titulo">
+        <input type="file" class="file-hidden" accept="image/*" capture="@CapturaEfetiva" @ref="_input" />
+        @ChildContent
+        @if (_ocupado)
+        {
+            <span class="foto-trigger-busy"><span class="spinner"></span></span>
+        }
+    </label>
+    return;
+}
+
 <label class="camera-cta @Tom @(Compacto ? "compact" : "") @(_ocupado ? "is-busy" : "")">
-    <input type="file" class="file-hidden" accept="image/*" capture="@Captura" @ref="_input" />
+    <input type="file" class="file-hidden" accept="image/*" capture="@CapturaEfetiva" @ref="_input" />
     <span class="camera-icon">
         @if (_ocupado)
         {
@@ -39,7 +53,17 @@
     [Parameter] public string? Tom { get; set; }
     [Parameter] public bool Compacto { get; set; }
     [Parameter] public string Captura { get; set; } = "environment";
+
+    /// <summary>Sem "capture": o celular oferece galeria, câmera ou arquivos (em vez de abrir a câmera direto).</summary>
+    [Parameter] public bool Galeria { get; set; }
+
+    /// <summary>Abre o ajuste de recorte quadrado (foto de perfil) antes de enviar; LadoMaximo = tamanho final.</summary>
+    [Parameter] public bool Recorte { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public int LadoMaximo { get; set; } = 1600;
+
+    private string? CapturaEfetiva => Galeria ? null : Captura;
 
     /// <summary>Endpoint da Api (relativo), ex.: "api/usagerecords/ler-painel".</summary>
     [Parameter, EditorRequired] public string Url { get; set; } = "";
@@ -73,6 +97,7 @@
                 geo = Localizacao,
                 enviarGeo = EnviarLocalizacao,
                 lado = LadoMaximo,
+                recorte = Recorte,
             });
         }
         catch (JSDisconnectedException) { }

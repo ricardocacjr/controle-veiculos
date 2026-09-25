@@ -24,7 +24,16 @@ public class AuthState(IJSRuntime js)
     /// <summary>false até tentar ler a sessão salva no aparelho (o layout espera isso antes de mostrar as telas).</summary>
     public bool Restaurado { get; private set; }
 
+    /// <summary>Muda quando o usuário troca a própria foto — a foto do topo recarrega na hora.</summary>
+    public string? FotoVersao { get; private set; }
+
     public event Action? Changed;
+
+    public void FotoAlterada()
+    {
+        FotoVersao = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        Changed?.Invoke();
+    }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(Token);
     public bool IsInRole(string role) => Roles.Contains(role);

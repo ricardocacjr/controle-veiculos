@@ -19,9 +19,11 @@ else if (!AuthState.IsAuthenticated || NaTelaDeAcesso)
 else
 {
     <header class="app-topbar">
-        <a class="app-brand" href="">
-            <Avatar UserId="AuthState.UserId" Nome="@AuthState.Nome" />
+        @* Tocar na foto/nome abre "Meu perfil" (trocar a foto, sair). *@
+        <a class="app-brand" href="perfil" title="Meu perfil">
+            <Avatar UserId="AuthState.UserId" Nome="@AuthState.Nome" Versao="@AuthState.FotoVersao" />
             <span>@AuthState.PrimeiroNome</span>
+            <Icon Name="chevron-right" Size="16" Class="opacity-50" />
         </a>
         <div class="app-user">
             @if (AuthState.EhGestao && AuthState.EhMotorista)

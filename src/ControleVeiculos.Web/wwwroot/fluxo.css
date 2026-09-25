@@ -525,6 +525,110 @@
     white-space: nowrap;
 }
 
+.foto-trigger {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    margin: 0;
+}
+
+    .foto-trigger.is-busy { pointer-events: none; }
+
+.foto-trigger-busy {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .7);
+    color: var(--primary);
+}
+
+.foto-opcoes { display: grid; gap: 12px; }
+
+/* ---------- Recorte da foto de perfil ---------- */
+
+.crop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 20px);
+    background: #05101f;
+    color: #fff;
+    overflow-y: auto;
+}
+
+.crop-top { text-align: center; max-width: 340px; }
+.crop-title { font-size: 22px; font-weight: 800; }
+.crop-sub { color: rgba(255, 255, 255, .7); font-size: 14.5px; margin-top: 4px; }
+
+/* Palco recorta a foto ampliada (e a sombra da moldura) — sem isso ela cobre o título/botões e faz a tela rolar. */
+.crop-palco {
+    align-self: stretch;
+    margin: 0 -20px;
+    padding: 28px 0;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.crop-area {
+    position: relative;
+    width: min(78vw, 320px);
+    aspect-ratio: 1 / 1;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+    .crop-area:active { cursor: grabbing; }
+
+.crop-img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    max-width: none !important;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* Moldura = formato do perfil (quadrado com cantos arredondados); o resto fica escurecido. */
+.crop-frame {
+    position: absolute;
+    inset: 0;
+    border-radius: 25%;
+    box-shadow: 0 0 0 2000px rgba(5, 16, 31, .72);
+    border: 3px solid #fff;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.crop-zoom {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: min(78vw, 320px);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+    .crop-zoom input { flex: 1; accent-color: var(--primary); height: 32px; }
+
+.crop-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 360px;
+}
+
 /* ---------- Reconexão (Blazor) ---------- */
 
 #components-reconnect-modal { display: none; }

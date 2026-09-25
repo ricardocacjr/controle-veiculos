@@ -110,9 +110,16 @@ window.cvCamera = {
             input.value = ""; // permite escolher a mesma foto de novo
             if (!file || !c) return;
 
+            // Foto de perfil: primeiro a pessoa ajusta o recorte (quadrado), depois envia.
+            let recortada = null;
+            if (c.recorte) {
+                recortada = await cvRecorte.abrir(file, c.lado || 400);
+                if (!recortada) return; // cancelou
+            }
+
             cvEnvio.avisar(net, "Inicio");
             const geoPromessa = c.geo ? window.getGeolocation() : Promise.resolve(null);
-            const blob = await cvImagem.reduzir(file, c.lado || 1600, 0.85);
+            const blob = recortada || await cvImagem.reduzir(file, c.lado || 1600, 0.85);
             const geo = await geoPromessa;
             const extras = c.enviarGeo && geo && geo.lat != null ? { latitude: geo.lat, longitude: geo.lng } : {};
             const r = await cvEnvio.enviar(c, blob, "foto.jpg", extras);
@@ -122,6 +129,104 @@ window.cvCamera = {
             });
         });
     },
+};
+
+// Recorte da foto de perfil: moldura quadrada fixa (mesmo formato do perfil na tela de entrada);
+// a pessoa arrasta a foto e aproxima (controle deslizante, pinça com dois dedos ou roda do mouse).
+// A foto sempre cobre a moldura inteira. Devolve um JPEG quadrado ou null se cancelar.
+window.cvRecorte = {
+    abrir: (file, lado) => new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const ov = document.createElement("div");
+        ov.className = "crop-overlay";
+        ov.innerHTML = `
+            <div class="crop-top">
+                <div class="crop-title">Ajuste sua foto</div>
+                <div class="crop-sub">Arraste para posicionar. Use o controle (ou dois dedos) para aproximar.</div>
+            </div>
+            <div class="crop-palco"><div class="crop-area"><img class="crop-img" alt="" draggable="false"><div class="crop-frame"></div></div></div>
+            <div class="crop-zoom"><span>−</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom"><span>+</span></div>
+            <div class="crop-actions">
+                <button type="button" class="btn btn-soft btn-app crop-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-app crop-ok" disabled>Usar esta foto</button>
+            </div>`;
+        document.body.appendChild(ov);
+
+        const area = ov.querySelector(".crop-area");
+        const img = ov.querySelector(".crop-img");
+        const range = ov.querySelector("input");
+        const ok = ov.querySelector(".crop-ok");
+        let S = 0, base = 1, zoom = 1, x = 0, y = 0; // x,y = deslocamento do centro da foto em px de tela
+
+        const aplicar = () => {
+            const esc = base * zoom;
+            const w = img.naturalWidth * esc, h = img.naturalHeight * esc;
+            const maxX = Math.max(0, (w - S) / 2), maxY = Math.max(0, (h - S) / 2);
+            x = Math.min(maxX, Math.max(-maxX, x));
+            y = Math.min(maxY, Math.max(-maxY, y));
+            img.style.width = w + "px";
+            img.style.height = h + "px";
+            img.style.transform = `translate(${-w / 2 + x}px, ${-h / 2 + y}px)`;
+        };
+        const definirZoom = (z) => { zoom = Math.min(4, Math.max(1, z)); range.value = zoom; aplicar(); };
+
+        img.onload = () => {
+            S = area.clientWidth;
+            base = S / Math.min(img.naturalWidth, img.naturalHeight); // zoom 1 = foto cobrindo a moldura
+            aplicar();
+            ok.disabled = false;
+        };
+        img.onerror = () => fechar(null);
+        img.src = url;
+
+        range.addEventListener("input", () => definirZoom(parseFloat(range.value)));
+
+        const ptrs = new Map();
+        let distIni = 0, zoomIni = 1;
+        area.addEventListener("pointerdown", (e) => {
+            area.setPointerCapture(e.pointerId);
+            ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (ptrs.size === 2) {
+                const [a, b] = [...ptrs.values()];
+                distIni = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+                zoomIni = zoom;
+            }
+        });
+        area.addEventListener("pointermove", (e) => {
+            if (!ptrs.has(e.pointerId)) return;
+            const ant = ptrs.get(e.pointerId), nov = { x: e.clientX, y: e.clientY };
+            ptrs.set(e.pointerId, nov);
+            if (ptrs.size === 1) { x += nov.x - ant.x; y += nov.y - ant.y; aplicar(); }
+            else if (ptrs.size === 2) {
+                const [a, b] = [...ptrs.values()];
+                definirZoom(zoomIni * Math.hypot(a.x - b.x, a.y - b.y) / distIni);
+            }
+        });
+        const soltar = (e) => ptrs.delete(e.pointerId);
+        area.addEventListener("pointerup", soltar);
+        area.addEventListener("pointercancel", soltar);
+        area.addEventListener("wheel", (e) => { e.preventDefault(); definirZoom(zoom * (e.deltaY < 0 ? 1.08 : 0.92)); }, { passive: false });
+
+        function fechar(resultado) {
+            URL.revokeObjectURL(url);
+            ov.remove();
+            resolve(resultado);
+        }
+
+        ov.querySelector(".crop-cancel").addEventListener("click", () => fechar(null));
+        ok.addEventListener("click", () => {
+            const esc = base * zoom;
+            const w = img.naturalWidth * esc, h = img.naturalHeight * esc;
+            // Moldura vai de -S/2 a S/2 em torno do centro; canto da foto está em (-w/2 + x, -h/2 + y).
+            const sx = (-S / 2 - (-w / 2 + x)) / esc;
+            const sy = (-S / 2 - (-h / 2 + y)) / esc;
+            const sl = S / esc;
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = lado || 400;
+            canvas.getContext("2d").drawImage(img, sx, sy, sl, sl, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((b) => fechar(b), "image/jpeg", 0.9);
+        });
+    }),
 };
 
 // Gravador de voz em WAV 16 kHz mono (LINEAR16). O MediaRecorder do iPhone só grava AAC/MP4,

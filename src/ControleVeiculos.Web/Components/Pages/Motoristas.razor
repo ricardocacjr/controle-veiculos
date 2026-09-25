@@ -56,10 +56,11 @@
             @foreach (var p in _perfis)
             {
                 <div class="list-item">
-                    <label class="position-relative" style="cursor:pointer" title="Trocar foto">
-                        <InputFile class="file-hidden" accept="image/*" OnChange="@(e => TrocarFotoAsync(p, e))" />
+                    <CameraGrande Titulo="@($"Trocar a foto de {p.Nome}")" Galeria="true" Recorte="true" LadoMaximo="400"
+                                  Url="@($"api/perfis/{p.UserId}/foto")" Metodo="PUT"
+                                  OnInicio="() => _erro = _ok = null" OnResultado="r => FotoTrocada(p, r)">
                         <Avatar UserId="p.UserId" Nome="@p.Nome" Versao="@Versao(p)" TemFoto="@(p.TemFoto || _versoes.ContainsKey(p.UserId) ? (bool?)null : false)" Class="list-avatar" />
-                    </label>
+                    </CameraGrande>
                     <span class="list-item-main">
                         <span class="list-item-title d-block">@p.Nome</span>
                         <span class="list-item-sub d-block" style="white-space:normal">
@@ -145,21 +146,18 @@
         }
     }
 
-    private async Task TrocarFotoAsync(PerfilDto p, InputFileChangeEventArgs e)
+    private void FotoTrocada(PerfilDto p, ResultadoEnvio resultado)
     {
-        _erro = _ok = null;
-        try
+        if (!resultado.Ok)
         {
-            var reduzida = await e.File.RequestImageFileAsync("image/jpeg", 320, 320);
-            using var foto = await Localizacao.LerArquivoAsync(reduzida, 400 * 1024);
-            await Api.EnviarFotoPerfilAsync(p.UserId, foto, "image/jpeg");
-            _versoes[p.UserId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-            _ok = $"Foto de {p.Nome} atualizada.";
+            _erro = $"Não foi possível trocar a foto: {resultado.Mensagem}";
+            return;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
-        {
-            _erro = $"Não foi possível trocar a foto: {ex.Message}";
-        }
+
+        _versoes[p.UserId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        _ok = $"Foto de {p.Nome} atualizada.";
+        if (p.UserId == AuthState.UserId)
+            AuthState.FotoAlterada();
     }
 
     private async Task RedefinirPinAsync(PerfilDto p)

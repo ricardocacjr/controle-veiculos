@@ -1,0 +1,53 @@
+@page "/perfil"
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Meu perfil</PageTitle>
+
+@if (!AuthState.IsAuthenticated || AuthState.UserId is not { } meuId)
+{
+    return;
+}
+
+<a class="back-link text-decoration-none" href=""><Icon Name="chevron-left" Size="18" /> Voltar</a>
+
+<div class="text-center mb-4">
+    <Avatar UserId="meuId" Nome="@AuthState.Nome" Versao="@_versaoFoto" Class="perfil-avatar" />
+    <h1 class="page-title mt-3 mb-0">@AuthState.Nome</h1>
+    <div class="muted">Usuário @AuthState.Login</div>
+</div>
+
+<div class="section-title">Foto do perfil</div>
+<p class="muted" style="margin:-4px 4px 12px">Aparece na tela de entrada. Depois de escolher, ajuste o recorte do jeito que quiser.</p>
+<FotoPerfilOpcoes UserId="meuId" OnEnviada="FotoEnviada" />
+<Mensagens Sucesso="@_ok" />
+
+<button type="button" class="btn btn-soft btn-app mt-4" @onclick="SairAsync"><Icon Name="logout" Size="20" /><span>Sair do app</span></button>
+
+<style>
+    .perfil-avatar { width: 120px; height: 120px; border-radius: 30px; font-size: 44px; margin: 0 auto; box-shadow: var(--shadow); }
+</style>
+
+@code {
+    private string? _versaoFoto;
+    private string? _ok;
+
+    protected override void OnInitialized()
+    {
+        if (!AuthState.IsAuthenticated)
+            Nav.NavigateTo("/login");
+    }
+
+    private void FotoEnviada()
+    {
+        _versaoFoto = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        _ok = "✅ Foto atualizada!";
+        AuthState.FotoAlterada();
+    }
+
+    private async Task SairAsync()
+    {
+        await AuthState.SairAsync();
+        Nav.NavigateTo("/login");
+    }
+}

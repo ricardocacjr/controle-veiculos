@@ -1,0 +1,31 @@
+@* Trocar a foto do perfil: selfie na hora ou foto da galeria — as duas passam pelo ajuste de
+   recorte (moldura no formato do perfil) antes de enviar. *@
+<div class="foto-opcoes">
+    <CameraGrande Titulo="Tirar uma selfie" Subtitulo="Abre a câmera da frente" Icone="camera" Compacto="true"
+                  Captura="user" Recorte="true" LadoMaximo="400" TextoOcupado="Enviando..."
+                  Url="@Url" Metodo="PUT" OnInicio="() => _erro = null" OnResultado="ResultadoAsync" />
+    <CameraGrande Titulo="Escolher da galeria" Subtitulo="Use uma foto que você já tem" Icone="image" Compacto="true"
+                  Galeria="true" Recorte="true" LadoMaximo="400" TextoOcupado="Enviando..."
+                  Url="@Url" Metodo="PUT" OnInicio="() => _erro = null" OnResultado="ResultadoAsync" />
+</div>
+<Mensagens Erro="@_erro" />
+
+@code {
+    [Parameter, EditorRequired] public Guid UserId { get; set; }
+    [Parameter] public EventCallback OnEnviada { get; set; }
+
+    private string? _erro;
+
+    private string Url => $"api/perfis/{UserId}/foto";
+
+    private async Task ResultadoAsync(ResultadoEnvio resultado)
+    {
+        if (!resultado.Ok)
+        {
+            _erro = $"Não foi possível enviar a foto: {resultado.Mensagem}";
+            return;
+        }
+
+        await OnEnviada.InvokeAsync();
+    }
+}
