@@ -99,6 +99,10 @@
                 lado = LadoMaximo,
                 recorte = Recorte,
             });
+
+            // Pede o local já ao abrir a tela — depois da câmera o iPhone costuma não entregar a tempo.
+            if (firstRender && Localizacao)
+                await JS.InvokeVoidAsync("cvGeoAquecer");
         }
         catch (JSDisconnectedException) { }
     }

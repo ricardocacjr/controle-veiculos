@@ -121,7 +121,18 @@ else
 
                 <div class="reading-card">
                     <div class="reading-label">Saindo de</div>
-                    <LocalLido NaBase="_naBase" Endereco="@_origem" Posicao="_posicao" />
+                    @if (_buscandoLocal)
+                    {
+                        <div class="muted"><span class="spinner"></span> Pegando o local...</div>
+                    }
+                    else
+                    {
+                        <LocalLido NaBase="_naBase" Endereco="@_origem" Posicao="_posicao" />
+                        @if (SemLocal)
+                        {
+                            <button type="button" class="btn btn-soft btn-app mt-2" @onclick="BuscarLocalAsync"><Icon Name="pin" Size="18" /> Tentar pegar o local de novo</button>
+                        }
+                    }
                 </div>
 
                 <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null or <= 0)" @onclick="() => _passo = 4">
@@ -170,7 +181,17 @@ else
                 </div>
                 <div class="summary-row">
                     <Icon Name="pin" Class="summary-icon" />
-                    <span><span class="summary-key">Saindo de</span><span class="summary-value">@(_naBase ? Base.Nome : _origem ?? "Local não identificado")</span></span>
+                    <span class="flex-grow-1">
+                        <span class="summary-key">Saindo de</span>
+                        <span class="summary-value">@(_naBase ? Base.Nome : _origem ?? (_posicao?.Ok == true ? "Local marcado no mapa (GPS)" : "Local não identificado"))</span>
+                        @if (SemLocal)
+                        {
+                            <span class="d-block muted mt-1" style="font-size:14px">@(_posicao?.Error is { } motivo ? $"Motivo: {motivo}" : "")</span>
+                            <button type="button" class="btn btn-soft mt-2" disabled="@_buscandoLocal" @onclick="BuscarLocalAsync">
+                                @if (_buscandoLocal) { <span class="spinner"></span> } else { <Icon Name="pin" Size="16" /> } Tentar de novo
+                            </button>
+                        }
+                    </span>
                 </div>
             </div>
 
@@ -310,17 +331,39 @@ else
         _corrigindoKm = false;
         StateHasChanged();
 
-        if (!_naBase && _origem is null && _posicao.Ok)
-            _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
+
+        // Sem GPS junto com a foto (comum no iPhone logo depois da câmera): tenta mais uma vez agora.
+        if (!_posicao.Ok)
+            await BuscarLocalAsync();
+        else if (!_naBase && _origem is null)
+            _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
+    }
+
+    private bool _buscandoLocal;
+    private bool SemLocal => !_naBase && _posicao?.Ok != true;
+
+    private async Task BuscarLocalAsync()
+    {
+        _buscandoLocal = true;
+        StateHasChanged();
+        try
+        {
+            var nova = await Localizacao.ObterAsync();
+            _posicao = nova;
+            _naBase = nova.Ok && Base.EstaNaBase(nova.Lat!.Value, nova.Lng!.Value);
+            _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}"
+                : nova.Ok ? await Localizacao.EnderecoAsync(nova.Lat!.Value, nova.Lng!.Value) : null;
+        }
+        finally
+        {
+            _buscandoLocal = false;
+        }
     }
 
     private async Task DigitarSemFotoAsync()
     {
-        _posicao = await Localizacao.ObterAsync();
-        _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
-        _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}"
-            : _posicao.Ok ? await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value) : null;
+        await BuscarLocalAsync();
         _km = null;
         _fotoLida = true;
     }
