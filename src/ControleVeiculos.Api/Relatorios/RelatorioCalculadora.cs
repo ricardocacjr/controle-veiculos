@@ -213,6 +213,12 @@ public static class RelatorioCalculadora
                 alertas.Add(new("Abastecimento sem comprovante", GravidadeAlerta.Media,
                     string.Create(PtBr, $"{Quem(u)} registrou {u.Abastecimentos.Count} abastecimento(s) em {Data(u.IniciadoEm)}, mas só {comprovantes} foto(s) de comprovante."),
                     u.Id, u.IniciadoEm));
+
+            // 6. Chegada com km digitado (motorista sem câmera).
+            if (u.Status == UsageRecordStatus.Finalizado && !u.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
+                alertas.Add(new("Chegada sem foto do painel", GravidadeAlerta.Media,
+                    string.Create(PtBr, $"{Quem(u)} finalizou a saída de {Data(u.IniciadoEm)} digitando o km ({u.OdometroFinal:N0} km), sem foto do painel. Confira no carro."),
+                    u.Id, u.FinalizadoEm ?? u.IniciadoEm));
         }
 
         return alertas

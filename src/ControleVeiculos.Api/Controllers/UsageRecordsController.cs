@@ -229,7 +229,8 @@ public class UsageRecordsController(
             return BadRequest("Este uso já foi finalizado.");
         if (request.OdometroFinal < usage.OdometroInicial)
             return BadRequest("Odômetro final não pode ser menor que o inicial.");
-        if (!usage.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
+        // Sem câmera o motorista pode digitar o km (SemFoto) — o relatório aponta a chegada sem foto.
+        if (!request.SemFoto && !usage.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
             return BadRequest("Tire a foto do painel antes de finalizar.");
 
         usage.OdometroFinal = request.OdometroFinal;

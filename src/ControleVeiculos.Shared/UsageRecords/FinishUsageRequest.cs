@@ -1,3 +1,4 @@
 namespace ControleVeiculos.Shared.UsageRecords;
 
-public record FinishUsageRequest(int OdometroFinal);
+/// <param name="SemFoto">Motorista sem câmera digitou o km — finaliza sem a foto do painel e vira alerta no relatório.</param>
+public record FinishUsageRequest(int OdometroFinal, bool SemFoto = false);

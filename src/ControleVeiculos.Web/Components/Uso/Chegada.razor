@@ -13,10 +13,11 @@
     <h1 class="step-title">Foto do painel na chegada</h1>
     @if (!_fotoLida)
     {
-        <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. Essa foto é obrigatória para finalizar."
+        <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. O app lê o número sozinho."
                       TextoOcupado="Lendo o painel..." Url="@($"api/usagerecords/{Uso.Id}/fotos")" Campos="CamposFoto"
                       Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
         <Mensagens Erro="@_erro" />
+        <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarSemFotoAsync">Sem câmera? Digitar o km</button>
     }
     else
     {
@@ -24,7 +25,11 @@
             <div class="reading-label">Km do painel</div>
             @if (_km is null || _corrigindoKm)
             {
-                @if (_km is null && !_corrigindoKm)
+                @if (_semFoto)
+                {
+                    <div class="notice notice-info">Digite o km que aparece no painel. Sem a foto, o administrador vai conferir esse número.</div>
+                }
+                else if (_km is null && !_corrigindoKm)
                 {
                     <div class="notice notice-info">Não consegui ler o número. Digite o km:</div>
                 }
@@ -57,7 +62,9 @@
         <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null || _km < Uso.OdometroInicial)" @onclick="() => _passo = 2">
             Continuar <Icon Name="chevron-right" Size="20" />
         </button>
-        <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _fotoLida = false"><Icon Name="camera" Size="18" /> Tirar outra foto</button>
+        <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => { _fotoLida = false; _semFoto = false; }">
+            <Icon Name="camera" Size="18" /> @(_semFoto ? "Tirar a foto" : "Tirar outra foto")
+        </button>
     }
 }
 else
@@ -103,6 +110,7 @@ else
     private int _passo = 1;
     private bool _salvando;
     private bool _fotoLida;
+    private bool _semFoto;
     private bool _corrigindoKm;
     private int? _km;
     private Posicao? _posicao;
@@ -151,6 +159,16 @@ else
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
+    private async Task DigitarSemFotoAsync()
+    {
+        _erro = null;
+        _semFoto = true;
+        _km = null;
+        _corrigindoKm = false;
+        _fotoLida = true;
+        _posicao = await Localizacao.ObterAsync();
+    }
+
     private async Task FinalizarAsync()
     {
         if (_km is null)
@@ -160,7 +178,7 @@ else
         _erro = null;
         try
         {
-            await Api.FinalizarUsoAsync(Uso.Id, _km.Value);
+            await Api.FinalizarUsoAsync(Uso.Id, _km.Value, _semFoto);
             await JS.InvokeVoidAsync("cvVibrar", new[] { 80, 60, 80 });
             await OnFinalizado.InvokeAsync($"Você rodou {_km.Value - Uso.OdometroInicial:N0} km.");
         }
