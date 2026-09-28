@@ -67,7 +67,7 @@ public static class RelatorioExcel
             ("Custo real dos km rodados", c.CustoReal, FormatoReais),
             ("COBRANÇA", Blank.Value, null),
             ("Tarifa adotada por km", c.TarifaPorKm, FormatoReaisKm),
-            ("Valor a cobrar (km × tarifa − pago pelo motorista)", c.ValorACobrar, FormatoReais),
+            ("Valor a cobrar (km × tarifa; saída paga do bolso = quitada)", c.ValorACobrar, FormatoReais),
             ("ALERTAS", rel.Alertas.Count, null),
         ];
         for (var i = 0; i < linhas.Length; i++)

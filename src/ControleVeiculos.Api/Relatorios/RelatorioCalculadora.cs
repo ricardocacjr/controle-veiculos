@@ -90,9 +90,9 @@ public static class RelatorioCalculadora
 
     public static decimal Litros(UsageRecord u) => u.Abastecimentos.Sum(a => a.Litros);
 
-    /// <summary>km × tarifa, menos o combustível que o motorista pagou do bolso nessa saída (nunca negativo).</summary>
+    /// <summary>km × tarifa. Saída em que o motorista abasteceu do próprio bolso fica quitada (zero) — regra da planilha da empresa.</summary>
     public static decimal ValorACobrar(UsageRecord u, decimal tarifa) =>
-        Math.Round(Math.Max(0, Km(u) * tarifa - PagoPeloMotorista(u)), 2);
+        u.Abastecimentos.Any(a => a.PagoPeloMotorista) ? 0 : Math.Round(Km(u) * tarifa, 2);
 
     public static string NomeVeiculo(Vehicle? v) => v is null ? "?" : $"{v.Placa} · {v.Modelo}";
 
@@ -372,10 +372,10 @@ public static class RelatorioCalculadora
                     string.Create(PtBr, $"{Quem(u)} finalizou a saída de {Data(u.IniciadoEm)} digitando o km ({u.OdometroFinal:N0} km), sem foto do painel. Confira no carro."),
                     u.Id, u.FinalizadoEm ?? u.IniciadoEm));
 
-            // 7. Combustível pago do bolso — já abatido do valor a cobrar dessa saída.
+            // 7. Combustível pago do bolso — a saída fica quitada (não entra na cobrança).
             foreach (var a in u.Abastecimentos.Where(a => a.PagoPeloMotorista))
                 alertas.Add(new("Abastecimento pago pelo motorista", GravidadeAlerta.Baixa,
-                    string.Create(PtBr, $"{Quem(u)} pagou R$ {a.ValorTotal:N2} ({a.Litros:N3} L) do próprio bolso em {Data(a.CreatedAt)}{(a.TanqueCheio ? "" : ", sem encher o tanque")}. Já abatido do valor a cobrar dessa saída."),
+                    string.Create(PtBr, $"{Quem(u)} pagou R$ {a.ValorTotal:N2} ({a.Litros:N3} L) do próprio bolso em {Data(a.CreatedAt)}{(a.TanqueCheio ? "" : ", sem encher o tanque")}. Saída quitada: não entra na cobrança."),
                     u.Id, a.CreatedAt));
         }
 

@@ -133,7 +133,8 @@ Substitui a planilha manual que a empresa usava (registro em papel → resumo se
 - **Custos e cobrança** — combustível por km medido de **tanque cheio a tanque cheio** (o primeiro
   tanque cheio é o "dia zero", só ponto de partida; o abastecimento que fecha o ciclo paga os km
   dele) + pneus e manutenção por km = custo real do km; **tarifa fixa** por km para cobrar.
-  Valor a cobrar de cada saída = km × tarifa − combustível pago do bolso pelo motorista nela.
+  Valor a cobrar de cada saída = km × tarifa; saída em que o motorista abasteceu do próprio bolso
+  fica **quitada** (zero), como na planilha.
   Parâmetros (tarifa, jogo de pneus, vida útil, manutenção/km) em **Custos e tarifa** (`/custos`,
   Api `GET/PUT api/relatorios/parametros`, só Admin altera), com o custo real dos últimos 90 dias
   como referência para revisar a tarifa.

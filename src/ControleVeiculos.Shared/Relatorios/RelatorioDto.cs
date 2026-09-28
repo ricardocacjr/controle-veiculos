@@ -28,7 +28,7 @@ public record ResumoDto(
 /// <summary>
 /// Quanto custou o km e quanto cobrar. Combustível por km vem dos ciclos de tanque cheio → tanque
 /// cheio (o abastecimento que fecha o ciclo paga os km rodados nele); extra = pneus + manutenção
-/// (parâmetros). Valor a cobrar = km × tarifa, menos o que o motorista pagou do bolso na saída.
+/// (parâmetros). Valor a cobrar = km × tarifa; saída em que o motorista abasteceu do bolso fica quitada (zero).
 /// </summary>
 public record CustosDto(
     decimal? CombustivelPorKm,

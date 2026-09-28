@@ -139,7 +139,7 @@ else if (_rel is { } rel)
                                 @g.ValorACobrar.ToString("C")
                                 @if (g.PagoPeloMotorista > 0)
                                 {
-                                    <div class="muted" style="font-size:12px;font-weight:500">já descontado @g.PagoPeloMotorista.ToString("C") pago do bolso</div>
+                                    <div class="muted" style="font-size:12px;font-weight:500">inclui saída quitada (@g.PagoPeloMotorista.ToString("C") pagos do bolso)</div>
                                 }
                             </td>
                         </tr>
@@ -156,7 +156,7 @@ else if (_rel is { } rel)
                 </tfoot>
             </table>
         </div>
-        <div class="field-hint mt-2">A cobrar = km × tarifa, menos o combustível que o motorista pagou do bolso naquela saída.</div>
+        <div class="field-hint mt-2">A cobrar = km × tarifa. Saída em que o motorista abasteceu do próprio bolso fica quitada (não é cobrada).</div>
     }
 
     <div class="section-title">Alertas (@rel.Alertas.Count)</div>
