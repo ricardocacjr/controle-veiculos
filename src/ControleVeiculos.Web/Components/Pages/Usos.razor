@@ -40,7 +40,7 @@ else
                     <span class="list-item-sub d-block">@Subtitulo(uso)</span>
                     <span class="list-item-sub d-block">@Quilometragem(uso)</span>
                 </span>
-                <span class="chip @status.Chip">@status.Texto</span>
+                <span class="chip @(uso.Importado ? "chip-primary" : status.Chip)">@(uso.Importado ? "Planilha" : status.Texto)</span>
                 <Icon Name="chevron-right" Size="18" Class="muted" />
             </a>
         }
@@ -62,9 +62,16 @@ else
         else
         {
             <div class="card-app zerar-card">
-                <div class="zerar-titulo"><Icon Name="alert" Size="22" /> Apagar as @_usos.Count saídas?</div>
+                <div class="zerar-titulo"><Icon Name="alert" Size="22" /> Apagar @(AApagar) saída(s)?</div>
                 <p class="mb-2">Some <b>tudo</b> do histórico: saídas, fotos, áudios e abastecimentos. <b>Não dá pra desfazer.</b></p>
                 <p class="muted mb-3" style="font-size:14px">Ficam: motoristas e PINs, veículos (com o km atual), empresas e motivos.</p>
+                @if (Importadas > 0)
+                {
+                    <label class="zerar-manter mb-3">
+                        <input type="checkbox" @bind="_manterImportados" />
+                        <span>Manter as @Importadas saídas importadas da planilha (histórico de antes do app)</span>
+                    </label>
+                }
                 <label class="fw-bold mb-1">Para confirmar, digite <span class="zerar-palavra">ZERAR</span></label>
                 <input class="form-control" @bind="_confirmacao" @bind:event="oninput" autocapitalize="characters" autocomplete="off" placeholder="ZERAR" />
                 <Mensagens Erro="@_erroZerar" />
@@ -88,12 +95,15 @@ else
 
 @code {
     private bool _confirmandoZerar;
+    private bool _manterImportados = true;
+    private int Importadas => _usos?.Count(u => u.Importado) ?? 0;
+    private int AApagar => (_usos?.Count ?? 0) - (_manterImportados ? Importadas : 0);
     private string? _confirmacao;
     private bool _zerando;
     private string? _erroZerar;
     private string? _ok;
 
-    private bool ConfirmacaoOk => string.Equals(_confirmacao?.Trim(), "ZERAR", StringComparison.OrdinalIgnoreCase);
+    private bool ConfirmacaoOk => AApagar > 0 && string.Equals(_confirmacao?.Trim(), "ZERAR", StringComparison.OrdinalIgnoreCase);
 
     private void AbrirZerar()
     {
@@ -109,9 +119,9 @@ else
         _erroZerar = null;
         try
         {
-            var apagadas = await Api.ZerarUsosAsync(_confirmacao ?? "");
+            var apagadas = await Api.ZerarUsosAsync(_confirmacao ?? "", _manterImportados);
             _confirmandoZerar = false;
-            _usos = [];
+            _usos = _manterImportados ? _usos?.Where(u => u.Importado).ToList() : [];
             _ok = $"Pronto! {apagadas} saída(s) apagada(s). O histórico começa do zero.";
         }
         catch (HttpRequestException ex)

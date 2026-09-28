@@ -35,6 +35,13 @@ public class UsageRecord : BaseEntity, ITenantScoped
 
     public UsageRecordStatus Status { get; set; } = UsageRecordStatus.EmAndamento;
 
+    /// <summary>Veio da planilha antiga (registro em papel): sem fotos nem GPS, então não gera
+    /// alertas de foto/localização, e o "Zerar usos" pode mantê-la.</summary>
+    public bool Importado { get; set; }
+
+    /// <summary>Anotação livre (ex.: observações transcritas da folha de papel).</summary>
+    public string? Observacao { get; set; }
+
     public ICollection<VehiclePhoto> Fotos { get; set; } = new List<VehiclePhoto>();
     public ICollection<VoiceNote> NotasDeVoz { get; set; } = new List<VoiceNote>();
     public ICollection<FuelEntry> Abastecimentos { get; set; } = new List<FuelEntry>();

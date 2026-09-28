@@ -224,10 +224,10 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         await EnsureSuccessWithApiErrorAsync(response);
     }
 
-    public async Task<int> ZerarUsosAsync(string confirmacao)
+    public async Task<int> ZerarUsosAsync(string confirmacao, bool manterImportados = true)
     {
         using var request = AuthorizedRequest(HttpMethod.Post, "api/usagerecords/zerar");
-        request.Content = JsonContent.Create(new ZerarUsosRequest(confirmacao));
+        request.Content = JsonContent.Create(new ZerarUsosRequest(confirmacao, manterImportados));
         var response = await http.SendAsync(request);
         await EnsureSuccessWithApiErrorAsync(response);
         return (await response.Content.ReadFromJsonAsync<ZerarUsosResponse>())?.Apagadas ?? 0;

@@ -33,6 +33,10 @@ public record Ciclo(Guid VeiculoId, string Veiculo, FuelEntry Abertura, FuelEntr
 {
     public decimal? KmPorLitro => Litros > 0 && Km > 0 ? Math.Round(Km / Litros, 2) : null;
     public decimal? CustoPorKm => Km > 0 ? Math.Round(Gasto / Km, 4) : null;
+
+    /// <summary>Consumo possível pra um carro (2 a 40 km/L). Fora disso é km ou litros errados (ou abastecimentos
+    /// de testes misturados): não entra no custo nem na referência de "normal" — só vira alerta.</summary>
+    public bool Plausivel => KmPorLitro is >= 2 and <= 40;
 }
 
 /// <summary>
@@ -139,7 +143,7 @@ public static class RelatorioCalculadora
     /// <summary>Custo do combustível por km: ciclos que fecharam no período; sem nenhum, os últimos ciclos até o fim do período.</summary>
     public static (decimal? PorKm, string? Origem, decimal? KmPorLitro) CombustivelPorKm(IReadOnlyList<Ciclo> ciclos, DateOnly de, DateOnly ate)
     {
-        var validos = ciclos.Where(c => c.Km > 0 && c.Litros > 0).ToList();
+        var validos = ciclos.Where(c => c.Plausivel).ToList();
         var base_ = validos.Where(c => NoPeriodo(c.Fechamento.CreatedAt, de, ate)).ToList();
         var origem = "ciclos de tanque cheio do período";
         if (base_.Count == 0)
@@ -245,7 +249,7 @@ public static class RelatorioCalculadora
             .GroupBy(x => (x.Veiculo, Mes: MesDe(x.a.CreatedAt)))
             .ToDictionary(g => g.Key, g => (Litros: g.Sum(x => x.a.Litros), Valor: g.Sum(x => x.a.ValorTotal)));
         var porCiclo = ciclos
-            .Where(c => c.Km > 0 && c.Litros > 0)
+            .Where(c => c.Plausivel)
             .GroupBy(c => (c.Veiculo, Mes: MesDe(c.Fechamento.CreatedAt)))
             .ToDictionary(g => g.Key, g => (Km: g.Sum(c => c.Km), Litros: g.Sum(c => c.Litros), Gasto: g.Sum(c => c.Gasto)));
 
@@ -344,7 +348,7 @@ public static class RelatorioCalculadora
                 }
             }
 
-            // 4. Onde começou a saída.
+            // 4. Onde começou a saída (saída importada do papel não tem GPS nem fotos — itens 4 a 6 não se aplicam).
             if (u.LatitudeInicial is { } lat && u.LongitudeInicial is { } lng)
             {
                 if (baseOperacional is { Configurada: true } b && b.DistanciaMetros(lat, lng) is var metros && metros > b.RaioMetros)
@@ -352,7 +356,7 @@ public static class RelatorioCalculadora
                         string.Create(PtBr, $"{Quem(u)} iniciou a saída a {metros / 1000:N1} km da base ({u.Origem ?? "local marcado no mapa"}), em {Data(u.IniciadoEm)}."),
                         u.Id, u.IniciadoEm));
             }
-            else
+            else if (!u.Importado)
             {
                 alertas.Add(new("Saída sem localização", GravidadeAlerta.Baixa,
                     string.Create(PtBr, $"A saída de {Quem(u)} em {Data(u.IniciadoEm)} foi registrada sem GPS (não dá pra saber se começou na base)."),
@@ -361,13 +365,13 @@ public static class RelatorioCalculadora
 
             // 5. Abastecimento sem foto do comprovante.
             var comprovantes = u.Fotos.Count(f => f.Tipo == VehiclePhotoType.ComprovanteAbastecimento);
-            if (u.Abastecimentos.Count > comprovantes)
+            if (!u.Importado && u.Abastecimentos.Count > comprovantes)
                 alertas.Add(new("Abastecimento sem comprovante", GravidadeAlerta.Media,
                     string.Create(PtBr, $"{Quem(u)} registrou {u.Abastecimentos.Count} abastecimento(s) em {Data(u.IniciadoEm)}, mas só {comprovantes} foto(s) de comprovante."),
                     u.Id, u.IniciadoEm));
 
             // 6. Chegada com km digitado (motorista sem câmera).
-            if (u.Status == UsageRecordStatus.Finalizado && !u.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
+            if (!u.Importado && u.Status == UsageRecordStatus.Finalizado && !u.Fotos.Any(f => f.Tipo == VehiclePhotoType.OdometroFinal))
                 alertas.Add(new("Chegada sem foto do painel", GravidadeAlerta.Media,
                     string.Create(PtBr, $"{Quem(u)} finalizou a saída de {Data(u.IniciadoEm)} digitando o km ({u.OdometroFinal:N0} km), sem foto do painel. Confira no carro."),
                     u.Id, u.FinalizadoEm ?? u.IniciadoEm));
@@ -385,8 +389,16 @@ public static class RelatorioCalculadora
         {
             // Referência = km ÷ litros somados dos outros ciclos do carro: um tanque mal completado
             // puxa um ciclo pra cima e o seguinte pra baixo, e na soma isso se compensa.
-            var outros = comConsumo.Where(o => o != c && o.VeiculoId == c.VeiculoId).ToList();
+            var outros = comConsumo.Where(o => o != c && o.VeiculoId == c.VeiculoId && o.Plausivel).ToList();
             var kml = c.KmPorLitro!.Value;
+            if (!c.Plausivel)
+            {
+                alertas.Add(new("Km ou litros inconsistentes", GravidadeAlerta.Media,
+                    string.Create(PtBr, $"Entre os abastecimentos de {Data(c.Abertura.CreatedAt)} ({c.Abertura.Odometro:N0} km) e {Data(c.Fechamento.CreatedAt)} ({c.Fechamento.Odometro:N0} km) o {c.Veiculo} daria {kml:N1} km/L, o que é impossível. Confira o km e os litros desses abastecimentos (ficaram fora do cálculo de custo)."),
+                    c.UsoFechamento.Id, c.Fechamento.CreatedAt));
+                continue;
+            }
+
             var normal = outros.Count >= 2 ? outros.Sum(o => o.Km) / outros.Sum(o => o.Litros) : (decimal?)null;
             var fora = normal is { } n ? Math.Abs(kml - n) / n > 0.35m : kml is < 3 or > 25;
             if (!fora)
@@ -399,7 +411,7 @@ public static class RelatorioCalculadora
             var usoSuspeito = alto ? c.UsoFechamento : validas.FirstOrDefault(u => u.Abastecimentos.Contains(c.Abertura));
             var quem = usoSuspeito is null ? "" : $" ({Quem(usoSuspeito)})";
             alertas.Add(new("Consumo fora do normal", GravidadeAlerta.Media,
-                string.Create(PtBr, $"De {Data(c.Abertura.CreatedAt)} a {Data(c.Fechamento.CreatedAt)} o {c.Veiculo} fez {kml:N1} km/L{(normal is { } nn ? $" (o normal é ~{nn:N1})" : "")}. Provável tanque não completado no abastecimento de {Data(suspeito.CreatedAt)}{quem}, ou litros/km lidos errado."),
+                string.Create(PtBr, $"De {Data(c.Abertura.CreatedAt)} a {Data(c.Fechamento.CreatedAt)} o {c.Veiculo} fez {kml:N1} km/L{(normal is { } nn ? " (o normal é ~" + nn.ToString("N1", PtBr) + ")" : "")}. Provável tanque não completado no abastecimento de {Data(suspeito.CreatedAt)}{quem}, ou litros/km lidos errado."),
                 (usoSuspeito ?? c.UsoFechamento).Id, suspeito.CreatedAt));
         }
 

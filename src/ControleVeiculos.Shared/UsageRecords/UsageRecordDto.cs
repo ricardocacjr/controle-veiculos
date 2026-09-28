@@ -16,4 +16,5 @@ public record UsageRecordDto(
     int? OdometroFinal,
     DateTimeOffset IniciadoEm,
     DateTimeOffset? FinalizadoEm,
-    UsageRecordStatus Status);
+    UsageRecordStatus Status,
+    bool Importado = false);

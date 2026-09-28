@@ -824,3 +824,5 @@
     .custo-linha.total { font-weight: 800; font-size: 16.5px; }
 .link-secao { text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 13.5px; text-decoration: none; color: var(--primary); }
 .consumo-tabela tfoot td { border-top: 2px solid var(--border); }
+.zerar-manter { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; font-size: 14.5px; }
+    .zerar-manter input { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; accent-color: var(--primary); }

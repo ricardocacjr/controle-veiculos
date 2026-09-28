@@ -71,7 +71,7 @@ public class UsageRecordsController(
 
         if (usage.Status == UsageRecordStatus.EmAndamento)
             await LiberarVeiculosAsync(usage.VeiculoId, ct);
-        await usageRepository.ExcluirAsync([id], ct);
+        await usageRepository.ExcluirAsync([id], ct: ct);
         ApagarArquivos([id]);
         return NoContent();
     }
@@ -88,7 +88,7 @@ public class UsageRecordsController(
             return BadRequest("Digite ZERAR para confirmar.");
 
         await LiberarVeiculosAsync(null, ct);
-        var apagadas = await usageRepository.ExcluirAsync(null, ct);
+        var apagadas = await usageRepository.ExcluirAsync(null, request.ManterImportados, ct);
         ApagarArquivos(apagadas);
         return Ok(new ZerarUsosResponse(apagadas.Count));
     }
@@ -410,7 +410,7 @@ public class UsageRecordsController(
     private static UsageRecordDto ToDto(UsageRecord u) => new(
         u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?", u.Empresa?.Nome,
         u.Finalidade, u.Origem, u.Destino, u.OdometroInicial, u.OdometroFinal,
-        u.IniciadoEm, u.FinalizadoEm, u.Status);
+        u.IniciadoEm, u.FinalizadoEm, u.Status, u.Importado);
 
     private static UsageRecordDetailDto ToDetailDto(UsageRecord u) => new(
         u.Id, u.VeiculoId, u.Veiculo?.Placa ?? "?", u.MotoristaId, u.Motorista?.Nome ?? "?", u.Empresa?.Nome,
@@ -419,7 +419,7 @@ public class UsageRecordsController(
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
         u.Abastecimentos.OrderBy(a => a.CreatedAt).Select(ToFuelDto).ToList(),
-        u.LatitudeInicial, u.LongitudeInicial);
+        u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao);
 
     private static FuelEntryDto ToFuelDto(FuelEntry a) =>
         new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista);

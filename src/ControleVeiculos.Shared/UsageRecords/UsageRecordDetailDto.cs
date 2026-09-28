@@ -21,4 +21,6 @@ public record UsageRecordDetailDto(
     IReadOnlyList<VoiceNoteDto> NotasDeVoz,
     IReadOnlyList<FuelEntryDto> Abastecimentos,
     double? LatitudeInicial = null,
-    double? LongitudeInicial = null);
+    double? LongitudeInicial = null,
+    bool Importado = false,
+    string? Observacao = null);

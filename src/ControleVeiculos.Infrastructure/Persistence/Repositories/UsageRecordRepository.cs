@@ -67,9 +67,10 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .OrderBy(u => u.IniciadoEm)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<Guid>> ExcluirAsync(IReadOnlyCollection<Guid>? ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Guid>> ExcluirAsync(IReadOnlyCollection<Guid>? ids, bool manterImportados = false, CancellationToken ct = default)
     {
         var alvo = await (ids is null ? Set : Set.Where(u => ids.Contains(u.Id)))
+            .Where(u => !manterImportados || !u.Importado)
             .Select(u => u.Id)
             .ToListAsync(ct);
         if (alvo.Count == 0)

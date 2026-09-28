@@ -90,7 +90,7 @@ public static class RelatorioExcel
 
     private static void Saidas(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, decimal tarifa)
     {
-        string[] cab = ["Saída", "Chegada", "Horas", "Motorista", "Empresa", "Motivo", "Veículo", "Km saída", "Km chegada", "Km rodados", "Saindo de", "Situação", "Litros", "Combustível (R$)", "Pago pelo motorista (R$)", "Valor a cobrar (R$)"];
+        string[] cab = ["Saída", "Chegada", "Horas", "Motorista", "Empresa", "Motivo", "Veículo", "Km saída", "Km chegada", "Km rodados", "Saindo de", "Situação", "Litros", "Combustível (R$)", "Pago pelo motorista (R$)", "Valor a cobrar (R$)", "Observação"];
         var linhas = saidas.OrderBy(u => u.IniciadoEm).Select(u => new XLCellValue[]
         {
             Local(u.IniciadoEm),
@@ -109,6 +109,7 @@ public static class RelatorioExcel
             RelatorioCalculadora.Gasto(u),
             RelatorioCalculadora.PagoPeloMotorista(u),
             RelatorioCalculadora.ValorACobrar(u, tarifa),
+            (u.Importado ? "[planilha] " : "") + (u.Observacao ?? ""),
         });
         var ws = Tabela(wb, "Saídas", cab, linhas);
         Formatar(ws, [1, 2], FormatoDataHora);

@@ -61,6 +61,20 @@ else
         </div>
     </div>
 
+    @if (_uso.Importado || !string.IsNullOrWhiteSpace(_uso.Observacao))
+    {
+        <div class="card-app mt-3">
+            @if (_uso.Importado)
+            {
+                <span class="chip chip-primary mb-2 d-inline-block">Importada da planilha (registro em papel)</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_uso.Observacao))
+            {
+                <div style="white-space:pre-line">@_uso.Observacao</div>
+            }
+        </div>
+    }
+
     @if (_uso.LatitudeInicial is { } latSaida && _uso.LongitudeInicial is { } lngSaida)
     {
         <div class="section-title">Local de saída</div>
