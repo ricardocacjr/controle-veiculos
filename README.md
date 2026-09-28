@@ -126,14 +126,31 @@ discreto "Minhas saídas" pro histórico.
 Menu **Relatórios** (`/relatorios`, só Admin/Gestor; Api `GET api/relatorios?de=&ate=` e
 `GET api/relatorios/excel`), período em datas de Brasília (padrão: mês atual):
 
-- **Resumo** — saídas, km rodados, horas de uso, litros e R$ de combustível (km/horas só de saídas encerradas).
-- **Por motorista / empresa / motivo** — saídas, km, horas e combustível de cada um.
-- **Consumo** — últimos 12 meses por veículo: km/L (km do mês ÷ litros do mês), R$/km, preço médio do litro.
+Substitui a planilha manual que a empresa usava (registro em papel → resumo semanal com tarifa):
+
+- **Resumo** — saídas, km rodados, horas de uso, litros e R$ de combustível, separando o que a
+  empresa pagou do que o motorista pagou do bolso (km/horas só de saídas encerradas).
+- **Custos e cobrança** — combustível por km medido de **tanque cheio a tanque cheio** (o primeiro
+  tanque cheio é o "dia zero", só ponto de partida; o abastecimento que fecha o ciclo paga os km
+  dele) + pneus e manutenção por km = custo real do km; **tarifa fixa** por km para cobrar.
+  Valor a cobrar de cada saída = km × tarifa − combustível pago do bolso pelo motorista nela.
+  Parâmetros (tarifa, jogo de pneus, vida útil, manutenção/km) em **Custos e tarifa** (`/custos`,
+  Api `GET/PUT api/relatorios/parametros`, só Admin altera), com o custo real dos últimos 90 dias
+  como referência para revisar a tarifa.
+- **Por empresa (categoria) / motorista / motivo** — saídas, km, % do km, horas, custo real e valor a cobrar.
+  Uso pessoal é uma empresa cadastrada como "Pessoal".
+- **Ciclos de tanque cheio** e **consumo** dos últimos 12 meses (km/L e R$/km pelos ciclos).
 - **Alertas** — saída sem chegada há mais de 12 h; km rodado sem registro entre uma chegada e a
-  saída seguinte do mesmo carro (ou km que voltou); saída com mais de 500 km; saída fora da base
-  (seção `Base` do `appsettings.json` da **Api**) ou sem GPS; abastecimento sem foto do comprovante;
-  chegada com km digitado (sem foto do painel).
-- **Planilha Excel** (ClosedXML) com uma aba por visão + todas as saídas e abastecimentos (link do mapa).
+  saída seguinte do mesmo carro (ou km que voltou); saída com mais de 500 km ou bem acima do
+  habitual daquele motorista naquele motivo; saída fora da base (seção `Base` do
+  `appsettings.json` da **Api**) ou sem GPS; abastecimento sem foto do comprovante; chegada com km
+  digitado (sem foto do painel); abastecimento pago pelo motorista; ciclo com consumo fora do
+  normal (aponta quem provavelmente não completou o tanque).
+- **Planilha Excel** (ClosedXML): Resumo, Saídas, Por empresa/motorista/motivo, Abastecimentos
+  (tanque cheio?, quem pagou, link do mapa), Ciclos, Consumo, Alertas e Parâmetros.
+
+No abastecimento o motorista responde **Encheu o tanque?** e **Quem pagou?** (empresa / do bolso).
+Litros são guardados com 3 casas (19,416 L).
 
 Sem o ping, a primeira requisição depois de o Render dormir volta 502 por alguns segundos; o login
 do painel tenta de novo sozinho e, se ainda falhar, avisa que o servidor está iniciando.

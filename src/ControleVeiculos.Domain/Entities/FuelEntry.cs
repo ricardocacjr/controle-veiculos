@@ -21,4 +21,11 @@ public class FuelEntry : BaseEntity, ITenantScoped
     /// <summary>Onde abasteceu (GPS do celular na hora da foto) — mostrado como ponto no mapa.</summary>
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    /// <summary>Encheu o tanque? O consumo real (km/L) é medido de tanque cheio a tanque cheio.</summary>
+    public bool TanqueCheio { get; set; } = true;
+
+    /// <summary>Motorista pagou do próprio bolso (ex.: uso pessoal no fim de semana) — não é gasto
+    /// da empresa e abate do valor a cobrar dessa saída.</summary>
+    public bool PagoPeloMotorista { get; set; }
 }

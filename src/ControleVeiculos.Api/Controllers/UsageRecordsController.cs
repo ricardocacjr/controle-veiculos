@@ -335,6 +335,8 @@ public class UsageRecordsController(
             ValorPorLitro = request.ValorPorLitro,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            TanqueCheio = request.TanqueCheio,
+            PagoPeloMotorista = request.PagoPeloMotorista,
         };
 
         await usageRepository.AddFuelEntryAsync(entry, ct);
@@ -420,7 +422,7 @@ public class UsageRecordsController(
         u.LatitudeInicial, u.LongitudeInicial);
 
     private static FuelEntryDto ToFuelDto(FuelEntry a) =>
-        new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude);
+        new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista);
 
     /// <summary>Referência pra leitura do odômetro durante o uso: o maior km já registrado nele.</summary>
     private static int UltimoKmConhecido(UsageRecord u) =>

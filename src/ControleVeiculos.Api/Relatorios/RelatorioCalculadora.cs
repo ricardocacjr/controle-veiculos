@@ -27,9 +27,21 @@ public class BaseOperacional
     private static double Rad(double graus) => graus * Math.PI / 180;
 }
 
+/// <summary>Um ciclo de tanque cheio → tanque cheio, com o abastecimento que o fechou.</summary>
+public record Ciclo(Guid VeiculoId, string Veiculo, FuelEntry Abertura, FuelEntry Fechamento, UsageRecord UsoFechamento,
+    int Km, int Abastecimentos, decimal Litros, decimal Gasto)
+{
+    public decimal? KmPorLitro => Litros > 0 && Km > 0 ? Math.Round(Km / Litros, 2) : null;
+    public decimal? CustoPorKm => Km > 0 ? Math.Round(Gasto / Km, 4) : null;
+}
+
 /// <summary>
 /// Monta o relatório gerencial a partir das saídas. Datas e meses são sempre no horário de
 /// Brasília (o servidor roda em UTC). Km e horas contam só saídas encerradas.
+///
+/// Custos seguem a planilha que a empresa usava: o combustível do km sai dos ciclos de tanque
+/// cheio (o primeiro tanque cheio é o "dia zero" — só marca o ponto de partida), o extra
+/// (pneus + manutenção) sai dos parâmetros, e a cobrança usa uma tarifa fixa por km.
 /// </summary>
 public static class RelatorioCalculadora
 {
@@ -46,6 +58,8 @@ public static class RelatorioCalculadora
     public const int KmSaidaAlta = 500;
     /// <summary>Meses mostrados no consumo (terminando no mês do fim do período).</summary>
     public const int MesesConsumo = 12;
+    /// <summary>Sem ciclo fechado no período, o custo do combustível usa os últimos ciclos.</summary>
+    public const int CiclosRecentes = 3;
 
     public static DateTimeOffset InicioDoDia(DateOnly dia) => new(dia.ToDateTime(TimeOnly.MinValue), Brasilia);
 
@@ -61,6 +75,9 @@ public static class RelatorioCalculadora
     public static bool NoPeriodo(UsageRecord u, DateOnly de, DateOnly ate) =>
         u.Status != UsageRecordStatus.Cancelado && u.IniciadoEm >= InicioDoDia(de) && u.IniciadoEm < InicioDoDia(ate.AddDays(1));
 
+    private static bool NoPeriodo(DateTimeOffset quando, DateOnly de, DateOnly ate) =>
+        quando >= InicioDoDia(de) && quando < InicioDoDia(ate.AddDays(1));
+
     public static int Km(UsageRecord u) =>
         u.Status == UsageRecordStatus.Finalizado && u.OdometroFinal is { } fim ? Math.Max(0, fim - u.OdometroInicial) : 0;
 
@@ -69,15 +86,83 @@ public static class RelatorioCalculadora
 
     public static decimal Gasto(UsageRecord u) => u.Abastecimentos.Sum(a => a.ValorTotal);
 
+    public static decimal PagoPeloMotorista(UsageRecord u) => u.Abastecimentos.Where(a => a.PagoPeloMotorista).Sum(a => a.ValorTotal);
+
     public static decimal Litros(UsageRecord u) => u.Abastecimentos.Sum(a => a.Litros);
+
+    /// <summary>km × tarifa, menos o combustível que o motorista pagou do bolso nessa saída (nunca negativo).</summary>
+    public static decimal ValorACobrar(UsageRecord u, decimal tarifa) =>
+        Math.Round(Math.Max(0, Km(u) * tarifa - PagoPeloMotorista(u)), 2);
 
     public static string NomeVeiculo(Vehicle? v) => v is null ? "?" : $"{v.Placa} · {v.Modelo}";
 
-    public static RelatorioDto Calcular(IReadOnlyList<UsageRecord> carregadas, DateOnly de, DateOnly ate, BaseOperacional? baseOperacional, DateTimeOffset agora)
+    /// <summary>
+    /// Ciclos de tanque cheio de cada carro, na ordem do km. O abastecimento que fecha o ciclo (e os
+    /// parciais no meio) repõe o que foi gasto desde o tanque cheio anterior.
+    /// </summary>
+    public static List<Ciclo> Ciclos(IReadOnlyList<UsageRecord> validas)
+    {
+        var ciclos = new List<Ciclo>();
+        foreach (var carro in validas.GroupBy(u => u.VeiculoId))
+        {
+            var entradas = carro
+                .SelectMany(u => u.Abastecimentos.Select(a => (Uso: u, Abast: a)))
+                .OrderBy(x => x.Abast.Odometro).ThenBy(x => x.Abast.CreatedAt)
+                .ToList();
+
+            FuelEntry? abertura = null;
+            var acumulado = new List<FuelEntry>();
+            foreach (var (uso, a) in entradas)
+            {
+                if (abertura is null)
+                {
+                    // Dia zero: só o primeiro tanque cheio conhecido abre a contagem.
+                    if (a.TanqueCheio)
+                        abertura = a;
+                    continue;
+                }
+
+                acumulado.Add(a);
+                if (!a.TanqueCheio)
+                    continue;
+
+                ciclos.Add(new Ciclo(carro.Key, NomeVeiculo(uso.Veiculo), abertura, a, uso,
+                    Math.Max(0, a.Odometro - abertura.Odometro), acumulado.Count,
+                    acumulado.Sum(x => x.Litros), acumulado.Sum(x => x.ValorTotal)));
+                abertura = a;
+                acumulado = [];
+            }
+        }
+        return ciclos.OrderBy(c => c.Fechamento.CreatedAt).ToList();
+    }
+
+    /// <summary>Custo do combustível por km: ciclos que fecharam no período; sem nenhum, os últimos ciclos até o fim do período.</summary>
+    public static (decimal? PorKm, string? Origem, decimal? KmPorLitro) CombustivelPorKm(IReadOnlyList<Ciclo> ciclos, DateOnly de, DateOnly ate)
+    {
+        var validos = ciclos.Where(c => c.Km > 0 && c.Litros > 0).ToList();
+        var base_ = validos.Where(c => NoPeriodo(c.Fechamento.CreatedAt, de, ate)).ToList();
+        var origem = "ciclos de tanque cheio do período";
+        if (base_.Count == 0)
+        {
+            base_ = validos.Where(c => c.Fechamento.CreatedAt < InicioDoDia(ate.AddDays(1))).TakeLast(CiclosRecentes).ToList();
+            origem = "últimos ciclos de tanque cheio";
+        }
+        if (base_.Count == 0)
+            return (null, null, null);
+
+        var km = base_.Sum(c => c.Km);
+        return (Math.Round(base_.Sum(c => c.Gasto) / km, 4), origem, Math.Round(km / base_.Sum(c => c.Litros), 2));
+    }
+
+    public static RelatorioDto Calcular(IReadOnlyList<UsageRecord> carregadas, DateOnly de, DateOnly ate,
+        BaseOperacional? baseOperacional, ParametrosCusto parametros, DateTimeOffset agora)
     {
         var validas = carregadas.Where(u => u.Status != UsageRecordStatus.Cancelado).OrderBy(u => u.IniciadoEm).ToList();
         var doPeriodo = validas.Where(u => NoPeriodo(u, de, ate)).ToList();
+        var ciclos = Ciclos(validas);
 
+        var gasto = doPeriodo.Sum(Gasto);
+        var pago = doPeriodo.Sum(PagoPeloMotorista);
         var resumo = new ResumoDto(
             doPeriodo.Count,
             doPeriodo.Count(u => u.Status == UsageRecordStatus.EmAndamento),
@@ -85,30 +170,63 @@ public static class RelatorioCalculadora
             Math.Round(doPeriodo.Sum(Horas), 1),
             doPeriodo.Sum(u => u.Abastecimentos.Count),
             doPeriodo.Sum(Litros),
-            doPeriodo.Sum(Gasto));
+            gasto,
+            gasto - pago,
+            pago);
+
+        var (combustivelKm, origem, kmPorLitro) = CombustivelPorKm(ciclos, de, ate);
+        var custoKm = combustivelKm is { } c ? c + parametros.ExtraPorKm : (decimal?)null;
+        var custoKmEfetivo = custoKm ?? parametros.ExtraPorKm;
+        var litrosPeriodo = doPeriodo.Sum(Litros);
+        var custos = new CustosDto(
+            combustivelKm, origem,
+            Math.Round(parametros.PneusPorKm, 4), parametros.ManutencaoPorKm, Math.Round(parametros.ExtraPorKm, 4),
+            custoKm is { } ck ? Math.Round(ck, 4) : null,
+            parametros.TarifaPorKm,
+            Math.Round(resumo.KmRodados * custoKmEfetivo, 2),
+            doPeriodo.Sum(u => ValorACobrar(u, parametros.TarifaPorKm)),
+            kmPorLitro,
+            litrosPeriodo > 0 ? Math.Round(gasto / litrosPeriodo, 3) : null);
 
         return new RelatorioDto(
-            de, ate, resumo,
-            Agrupar(doPeriodo, u => u.Motorista?.Nome),
-            Agrupar(doPeriodo, u => u.Empresa?.Nome),
-            Agrupar(doPeriodo, u => u.Finalidade),
-            Consumo(validas, ate),
-            Alertas(validas, doPeriodo, baseOperacional, agora));
+            de, ate, resumo, custos,
+            Agrupar(doPeriodo, u => u.Motorista?.Nome, custoKmEfetivo, parametros.TarifaPorKm),
+            Agrupar(doPeriodo, u => u.Empresa?.Nome, custoKmEfetivo, parametros.TarifaPorKm),
+            Agrupar(doPeriodo, u => u.Finalidade, custoKmEfetivo, parametros.TarifaPorKm),
+            Consumo(validas, ciclos, ate),
+            ciclos.Where(ci => NoPeriodo(ci.Fechamento.CreatedAt, de, ate))
+                .OrderByDescending(ci => ci.Fechamento.CreatedAt)
+                .Select(ci => new CicloDto(ci.Veiculo, ci.Abertura.CreatedAt, ci.Fechamento.CreatedAt,
+                    ci.Abertura.Odometro, ci.Fechamento.Odometro, ci.Km, ci.Abastecimentos, ci.Litros, ci.Gasto,
+                    ci.KmPorLitro, ci.CustoPorKm is { } cpk ? Math.Round(cpk, 4) : null))
+                .ToList(),
+            Alertas(validas, doPeriodo, ciclos, de, ate, baseOperacional, agora));
     }
 
-    private static List<GrupoDto> Agrupar(IEnumerable<UsageRecord> usos, Func<UsageRecord, string?> chave) =>
-        usos.GroupBy(u => (chave(u) ?? "").Trim().ToUpperInvariant())
-            .Select(g => new GrupoDto(
-                string.IsNullOrWhiteSpace(g.Key) ? "(sem informação)" : (chave(g.First()) ?? "").Trim(),
-                g.Count(),
-                g.Sum(Km),
-                Math.Round(g.Sum(Horas), 1),
-                g.Sum(Gasto)))
+    private static List<GrupoDto> Agrupar(IReadOnlyList<UsageRecord> usos, Func<UsageRecord, string?> chave, decimal custoKm, decimal tarifa)
+    {
+        var kmTotal = Math.Max(1, usos.Sum(Km));
+        return usos.GroupBy(u => (chave(u) ?? "").Trim().ToUpperInvariant())
+            .Select(g =>
+            {
+                var km = g.Sum(Km);
+                return new GrupoDto(
+                    string.IsNullOrWhiteSpace(g.Key) ? "(sem informação)" : (chave(g.First()) ?? "").Trim(),
+                    g.Count(),
+                    km,
+                    Math.Round(g.Sum(Horas), 1),
+                    g.Sum(Gasto),
+                    Math.Round(100.0 * km / kmTotal, 1),
+                    Math.Round(km * custoKm, 2),
+                    g.Sum(PagoPeloMotorista),
+                    g.Sum(u => ValorACobrar(u, tarifa)));
+            })
             .OrderByDescending(g => g.KmRodados)
             .ThenByDescending(g => g.Saidas)
             .ToList();
+    }
 
-    private static List<ConsumoMesDto> Consumo(IReadOnlyList<UsageRecord> validas, DateOnly ate)
+    private static List<ConsumoMesDto> Consumo(IReadOnlyList<UsageRecord> validas, IReadOnlyList<Ciclo> ciclos, DateOnly ate)
     {
         var fimMes = new DateOnly(ate.Year, ate.Month, 1);
         var inicioMes = fimMes.AddMonths(-(MesesConsumo - 1));
@@ -118,7 +236,7 @@ public static class RelatorioCalculadora
             return new DateOnly(local.Year, local.Month, 1);
         }
 
-        // Km pelo mês da saída; litros/valor pelo mês do abastecimento.
+        // Km pelo mês da saída; litros/valor pelo mês do abastecimento; km/L e R$/km pelos ciclos que fecharam no mês.
         var km = validas
             .GroupBy(u => (Veiculo: NomeVeiculo(u.Veiculo), Mes: MesDe(u.IniciadoEm)))
             .ToDictionary(g => g.Key, g => g.Sum(Km));
@@ -126,6 +244,10 @@ public static class RelatorioCalculadora
             .SelectMany(u => u.Abastecimentos.Select(a => (Veiculo: NomeVeiculo(u.Veiculo), a)))
             .GroupBy(x => (x.Veiculo, Mes: MesDe(x.a.CreatedAt)))
             .ToDictionary(g => g.Key, g => (Litros: g.Sum(x => x.a.Litros), Valor: g.Sum(x => x.a.ValorTotal)));
+        var porCiclo = ciclos
+            .Where(c => c.Km > 0 && c.Litros > 0)
+            .GroupBy(c => (c.Veiculo, Mes: MesDe(c.Fechamento.CreatedAt)))
+            .ToDictionary(g => g.Key, g => (Km: g.Sum(c => c.Km), Litros: g.Sum(c => c.Litros), Gasto: g.Sum(c => c.Gasto)));
 
         return km.Keys.Union(combustivel.Keys)
             .Where(k => k.Mes >= inicioMes && k.Mes <= fimMes)
@@ -133,10 +255,11 @@ public static class RelatorioCalculadora
             {
                 var kmMes = km.GetValueOrDefault(k);
                 var (litros, valor) = combustivel.GetValueOrDefault(k);
+                var temCiclo = porCiclo.TryGetValue(k, out var ci);
                 return new ConsumoMesDto(
                     k.Mes.Year, k.Mes.Month, k.Veiculo, kmMes, litros, valor,
-                    litros > 0 && kmMes > 0 ? Math.Round(kmMes / litros, 1) : null,
-                    kmMes > 0 && valor > 0 ? Math.Round(valor / kmMes, 2) : null,
+                    temCiclo ? Math.Round(ci.Km / ci.Litros, 1) : null,
+                    temCiclo ? Math.Round(ci.Gasto / ci.Km, 4) : null,
                     litros > 0 ? Math.Round(valor / litros, 3) : null);
             })
             .Where(c => c.KmRodados > 0 || c.Litros > 0)
@@ -144,7 +267,15 @@ public static class RelatorioCalculadora
             .ToList();
     }
 
-    private static List<AlertaDto> Alertas(IReadOnlyList<UsageRecord> validas, IReadOnlyList<UsageRecord> doPeriodo, BaseOperacional? baseOperacional, DateTimeOffset agora)
+    private static decimal Mediana(IReadOnlyList<decimal> valores)
+    {
+        var ordenados = valores.Order().ToList();
+        var meio = ordenados.Count / 2;
+        return ordenados.Count % 2 == 1 ? ordenados[meio] : (ordenados[meio - 1] + ordenados[meio]) / 2;
+    }
+
+    private static List<AlertaDto> Alertas(IReadOnlyList<UsageRecord> validas, IReadOnlyList<UsageRecord> doPeriodo, IReadOnlyList<Ciclo> ciclos,
+        DateOnly de, DateOnly ate, BaseOperacional? baseOperacional, DateTimeOffset agora)
     {
         var alertas = new List<AlertaDto>();
         var noPeriodo = doPeriodo.Select(u => u.Id).ToHashSet();
@@ -184,13 +315,34 @@ public static class RelatorioCalculadora
             }
         }
 
+        // Km habitual de cada motorista em cada motivo (ex.: pernoite do Daniel ~8–15 km).
+        var habitual = validas
+            .Where(u => u.Status == UsageRecordStatus.Finalizado)
+            .GroupBy(u => (u.MotoristaId, Motivo: u.Finalidade.Trim().ToUpperInvariant()))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var u in doPeriodo)
         {
-            // 3. Saída com km muito alto.
-            if (Km(u) > KmSaidaAlta)
+            // 3. Saída com km muito alto, ou bem acima do que essa pessoa costuma rodar nesse motivo.
+            var km = Km(u);
+            if (km > KmSaidaAlta)
+            {
                 alertas.Add(new("Km alto", GravidadeAlerta.Media,
-                    string.Create(PtBr, $"{Quem(u)} rodou {Km(u):N0} km numa só saída ({Data(u.IniciadoEm)}, {u.Finalidade}). Confira se o km está certo."),
+                    string.Create(PtBr, $"{Quem(u)} rodou {km:N0} km numa só saída ({Data(u.IniciadoEm)}, {u.Finalidade}). Confira se o km está certo."),
                     u.Id, u.IniciadoEm));
+            }
+            else if (km > 0 && habitual.TryGetValue((u.MotoristaId, u.Finalidade.Trim().ToUpperInvariant()), out var mesmas))
+            {
+                var outras = mesmas.Where(o => o.Id != u.Id).Select(o => (decimal)Km(o)).ToList();
+                if (outras.Count >= 3)
+                {
+                    var normal = Mediana(outras);
+                    if (km >= Math.Max(normal * 2.5m, normal + 10))
+                        alertas.Add(new("Km acima do habitual", GravidadeAlerta.Media,
+                            string.Create(PtBr, $"{Quem(u)} rodou {km:N0} km em \"{u.Finalidade}\" ({Data(u.IniciadoEm)}); o normal dele(a) nesse motivo é ~{normal:N0} km."),
+                            u.Id, u.IniciadoEm));
+                }
+            }
 
             // 4. Onde começou a saída.
             if (u.LatitudeInicial is { } lat && u.LongitudeInicial is { } lng)
@@ -219,6 +371,36 @@ public static class RelatorioCalculadora
                 alertas.Add(new("Chegada sem foto do painel", GravidadeAlerta.Media,
                     string.Create(PtBr, $"{Quem(u)} finalizou a saída de {Data(u.IniciadoEm)} digitando o km ({u.OdometroFinal:N0} km), sem foto do painel. Confira no carro."),
                     u.Id, u.FinalizadoEm ?? u.IniciadoEm));
+
+            // 7. Combustível pago do bolso — já abatido do valor a cobrar dessa saída.
+            foreach (var a in u.Abastecimentos.Where(a => a.PagoPeloMotorista))
+                alertas.Add(new("Abastecimento pago pelo motorista", GravidadeAlerta.Baixa,
+                    string.Create(PtBr, $"{Quem(u)} pagou R$ {a.ValorTotal:N2} ({a.Litros:N3} L) do próprio bolso em {Data(a.CreatedAt)}{(a.TanqueCheio ? "" : ", sem encher o tanque")}. Já abatido do valor a cobrar dessa saída."),
+                    u.Id, a.CreatedAt));
+        }
+
+        // 8. Ciclo com consumo fora do normal — quase sempre é tanque que não foi enchido de verdade.
+        var comConsumo = ciclos.Where(c => c.KmPorLitro is not null).ToList();
+        foreach (var c in comConsumo.Where(c => NoPeriodo(c.Fechamento.CreatedAt, de, ate)))
+        {
+            // Referência = km ÷ litros somados dos outros ciclos do carro: um tanque mal completado
+            // puxa um ciclo pra cima e o seguinte pra baixo, e na soma isso se compensa.
+            var outros = comConsumo.Where(o => o != c && o.VeiculoId == c.VeiculoId).ToList();
+            var kml = c.KmPorLitro!.Value;
+            var normal = outros.Count >= 2 ? outros.Sum(o => o.Km) / outros.Sum(o => o.Litros) : (decimal?)null;
+            var fora = normal is { } n ? Math.Abs(kml - n) / n > 0.35m : kml is < 3 or > 25;
+            if (!fora)
+                continue;
+
+            // Km/L alto = poucos litros no fechamento (quem fechou não completou o tanque);
+            // km/L baixo = o tanque não estava cheio na abertura (quem abriu não completou).
+            var alto = normal is { } ref_ ? kml > ref_ : kml > 25;
+            var suspeito = alto ? c.Fechamento : c.Abertura;
+            var usoSuspeito = alto ? c.UsoFechamento : validas.FirstOrDefault(u => u.Abastecimentos.Contains(c.Abertura));
+            var quem = usoSuspeito is null ? "" : $" ({Quem(usoSuspeito)})";
+            alertas.Add(new("Consumo fora do normal", GravidadeAlerta.Media,
+                string.Create(PtBr, $"De {Data(c.Abertura.CreatedAt)} a {Data(c.Fechamento.CreatedAt)} o {c.Veiculo} fez {kml:N1} km/L{(normal is { } nn ? $" (o normal é ~{nn:N1})" : "")}. Provável tanque não completado no abastecimento de {Data(suspeito.CreatedAt)}{quem}, ou litros/km lidos errado."),
+                (usoSuspeito ?? c.UsoFechamento).Id, suspeito.CreatedAt));
         }
 
         return alertas

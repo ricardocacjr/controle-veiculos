@@ -80,8 +80,84 @@ else if (_rel is { } rel)
             <div class="kpi-valor">@r.GastoCombustivel.ToString("C0")</div>
             <div class="kpi-rotulo">em combustível</div>
             <div class="kpi-extra">@r.Litros.ToString("N1") L · @r.Abastecimentos abastec.</div>
+            @if (r.PagoPelosMotoristas > 0)
+            {
+                <div class="kpi-extra">@r.PagoPelosMotoristas.ToString("C") pago pelos motoristas</div>
+            }
         </div>
     </div>
+
+    var cu = rel.Custos;
+    <div class="section-title d-flex justify-content-between align-items-center">
+        <span>Custos e cobrança</span>
+        <a class="link-secao" href="custos">⚙ Custos e tarifa</a>
+    </div>
+    <div class="card-app">
+        <div class="custo-linha">
+            <span>Combustível por km@(cu.KmPorLitro is { } kml ? $" ({kml:N1} km/L)" : "")</span>
+            <b>@(cu.CombustivelPorKm?.ToString("C4") ?? "—")</b>
+        </div>
+        <div class="custo-linha"><span>Pneus + manutenção por km</span><b>@cu.ExtraPorKm.ToString("C4")</b></div>
+        <div class="custo-linha total"><span>Custo real do km</span><b>@(cu.CustoTotalPorKm?.ToString("C4") ?? "—")</b></div>
+        <div class="custo-linha"><span>Tarifa cobrada por km</span><b>@cu.TarifaPorKm.ToString("C4")</b></div>
+        @if (cu.CombustivelPorKm is null)
+        {
+            <div class="field-hint mt-2">O combustível por km aparece depois de dois abastecimentos de tanque cheio.</div>
+        }
+        else if (cu.OrigemCombustivel is { } origem && origem.StartsWith("últimos"))
+        {
+            <div class="field-hint mt-2">Nenhum tanque cheio fechou neste período — usando os últimos ciclos.</div>
+        }
+        @if (cu.CustoTotalPorKm is { } ck && ck > cu.TarifaPorKm)
+        {
+            <div class="notice notice-error mt-3 mb-0">O km está custando @ck.ToString("C4") e a tarifa é @cu.TarifaPorKm.ToString("C4"). Vale revisar a tarifa em "Custos e tarifa".</div>
+        }
+    </div>
+
+    @if (rel.PorEmpresa.Count > 0)
+    {
+        <div class="table-card mt-3">
+            <table class="table consumo-tabela">
+                <thead>
+                    <tr>
+                        <th>Categoria</th>
+                        <th class="text-end">Km</th>
+                        <th class="text-end">%</th>
+                        <th class="text-end">Custo real</th>
+                        <th class="text-end">A cobrar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in rel.PorEmpresa)
+                    {
+                        <tr>
+                            <td>@g.Nome</td>
+                            <td class="text-end">@g.KmRodados.ToString("N0")</td>
+                            <td class="text-end">@g.PercentualKm.ToString("N0")%</td>
+                            <td class="text-end">@g.CustoReal.ToString("C")</td>
+                            <td class="text-end fw-bold">
+                                @g.ValorACobrar.ToString("C")
+                                @if (g.PagoPeloMotorista > 0)
+                                {
+                                    <div class="muted" style="font-size:12px;font-weight:500">já descontado @g.PagoPeloMotorista.ToString("C") pago do bolso</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td class="fw-bold">Total</td>
+                        <td class="text-end fw-bold">@r.KmRodados.ToString("N0")</td>
+                        <td></td>
+                        <td class="text-end fw-bold">@cu.CustoReal.ToString("C")</td>
+                        <td class="text-end fw-bold">@cu.ValorACobrar.ToString("C")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="field-hint mt-2">A cobrar = km × tarifa, menos o combustível que o motorista pagou do bolso naquela saída.</div>
+    }
 
     <div class="section-title">Alertas (@rel.Alertas.Count)</div>
     @if (rel.Alertas.Count == 0)
@@ -153,10 +229,34 @@ else if (_rel is { } rel)
                         </span>
                     </div>
                     <div class="barra-trilho"><div class="barra-cheia" style="width:@((100.0 * valor / maximo).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
-                    <div class="barra-meta">@g.Saidas saída(s) · @Horas(g.Horas) h@(g.GastoCombustivel > 0 ? $" · {g.GastoCombustivel:C} combustível" : "")</div>
+                    <div class="barra-meta">@g.Saidas saída(s) · @Horas(g.Horas) h@(g.ValorACobrar > 0 ? $" · a cobrar {g.ValorACobrar:C}" : "")</div>
                 </div>
             }
         </div>
+    }
+
+    <div class="section-title">Tanque cheio a tanque cheio</div>
+    @if (rel.Ciclos.Count == 0)
+    {
+        <div class="empty-state"><div>Nenhum tanque cheio fechado no período. O primeiro tanque cheio só marca o ponto de partida.</div></div>
+    }
+    else
+    {
+        <div class="list-card">
+            @foreach (var c in rel.Ciclos)
+            {
+                <div class="list-item">
+                    <span class="avatar"><Icon Name="fuel" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@(c.KmPorLitro?.ToString("N1") ?? "—") km/L · @(c.CustoPorKm?.ToString("C3") ?? "—")/km</span>
+                        <span class="list-item-sub d-block" style="white-space:normal">
+                            @Rotulos.DataHora(c.Inicio) → @Rotulos.DataHora(c.Fim) · @c.Km.ToString("N0") km · @c.Litros.ToString("N3") L · @c.Gasto.ToString("C")
+                        </span>
+                    </span>
+                </div>
+            }
+        </div>
+        <div class="field-hint mt-2">Km rodados entre dois tanques cheios ÷ litros postos para encher de novo = consumo real do carro.</div>
     }
 
     <div class="section-title">Consumo (últimos 12 meses)</div>
@@ -204,14 +304,15 @@ else if (_rel is { } rel)
                 </tbody>
             </table>
         </div>
-        <div class="field-hint mt-2">Km/L = km rodados no mês ÷ litros abastecidos no mês. Mês a mês oscila (abasteceu num mês, rodou no outro); olhe a tendência.</div>
+        <div class="field-hint mt-2">Km/L e R$/km pelos ciclos de tanque cheio que fecharam no mês (— = nenhum ciclo fechou).</div>
     }
 }
 
 @code {
     private static readonly (string Chave, string Texto)[] Atalhos =
     [
-        ("mes", "Este mês"), ("anterior", "Mês passado"), ("30", "Últimos 30 dias"), ("ano", "Este ano"), ("datas", "Escolher datas"),
+        ("semana", "Esta semana"), ("semana-passada", "Semana passada"), ("mes", "Este mês"), ("anterior", "Mês passado"),
+        ("30", "Últimos 30 dias"), ("ano", "Este ano"), ("datas", "Escolher datas"),
     ];
 
     private static readonly (string Chave, string Texto)[] Visoes =
@@ -255,6 +356,8 @@ else if (_rel is { } rel)
         {
             "mes" => (inicioMes, hoje),
             "anterior" => (inicioMes.AddMonths(-1), inicioMes.AddDays(-1)),
+            "semana" => (InicioSemana(hoje), hoje),
+            "semana-passada" => (InicioSemana(hoje).AddDays(-7), InicioSemana(hoje).AddDays(-1)),
             "30" => (hoje.AddDays(-29), hoje),
             "ano" => (new DateOnly(hoje.Year, 1, 1), hoje),
             _ => null, // "datas": espera a pessoa escolher e tocar em "Ver"
@@ -316,6 +419,9 @@ else if (_rel is { } rel)
     }
 
     private static string Horas(double horas) => horas.ToString(horas >= 100 ? "N0" : "N1");
+
+    /// <summary>Semana começa na segunda-feira.</summary>
+    private static DateOnly InicioSemana(DateOnly dia) => dia.AddDays(-(((int)dia.DayOfWeek + 6) % 7));
 
     private static string NomeMes(int ano, int mes) =>
         new DateTime(ano, mes, 1).ToString("MMM/yy").TrimEnd('.').Replace("./", "/");

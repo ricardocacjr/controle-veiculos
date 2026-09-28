@@ -28,7 +28,7 @@
             <div class="reading-card">
                 <div class="field">
                     <label>Litros</label>
-                    <input class="form-control km-input" type="number" inputmode="decimal" step="0.01" @bind="_litros" @bind:event="oninput" />
+                    <input class="form-control km-input" type="number" inputmode="decimal" step="0.001" @bind="_litros" @bind:event="oninput" />
                 </div>
                 <div class="field-row">
                     <div class="field mb-0">
@@ -95,9 +95,25 @@
     case 3:
         <h1 class="step-title">Confere o abastecimento</h1>
         <div class="reading-card">
+            <div class="reading-label">Encheu o tanque?</div>
+            <div class="sim-nao">
+                <button type="button" class="sim-nao-btn @(_tanqueCheio ? "ativo" : "")" @onclick="() => _tanqueCheio = true">✅ Sim, completei</button>
+                <button type="button" class="sim-nao-btn @(!_tanqueCheio ? "ativo" : "")" @onclick="() => _tanqueCheio = false">Não, só um pouco</button>
+            </div>
+            <div class="reading-label mt-3">Quem pagou?</div>
+            <div class="sim-nao">
+                <button type="button" class="sim-nao-btn @(!_doBolso ? "ativo" : "")" @onclick="() => _doBolso = false">🏢 A empresa</button>
+                <button type="button" class="sim-nao-btn @(_doBolso ? "ativo" : "")" @onclick="() => _doBolso = true">👤 Eu, do meu bolso</button>
+            </div>
+            @if (_doBolso)
+            {
+                <div class="field-hint mt-2">Esse valor é descontado do que for cobrado desta saída.</div>
+            }
+        </div>
+        <div class="reading-card">
             <div class="summary-row">
                 <Icon Name="fuel" Class="summary-icon" />
-                <span><span class="summary-key">Litros</span><span class="summary-value">@_litros?.ToString("N2") L</span></span>
+                <span><span class="summary-key">Litros</span><span class="summary-value">@_litros?.ToString("N3") L</span></span>
             </div>
             <div class="summary-row">
                 <Icon Name="check" Class="summary-icon" />
@@ -141,6 +157,9 @@
     private decimal? _litros;
     private decimal? _valorTotal;
     private decimal? _valorLitro;
+
+    private bool _tanqueCheio = true;
+    private bool _doBolso;
 
     private bool _painelLido;
     private bool _corrigindoKm;
@@ -214,9 +233,9 @@
         try
         {
             await Api.AddAbastecimentoAsync(Uso.Id, new AddFuelEntryRequest(
-                _litros.Value, _valorTotal.Value, _km.Value, PrecoLitro, _posicao?.Lat, _posicao?.Lng));
+                _litros.Value, _valorTotal.Value, _km.Value, PrecoLitro, _posicao?.Lat, _posicao?.Lng, _tanqueCheio, _doBolso));
             await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
-            await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N2} L, R$ {_valorTotal:N2}.");
+            await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N3} L, R$ {_valorTotal:N2}.");
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

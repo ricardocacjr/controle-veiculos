@@ -797,3 +797,30 @@
 .zerar-palavra { font-family: ui-monospace, monospace; background: var(--danger-50); color: var(--danger); padding: 1px 6px; border-radius: 6px; }
 .zerar-acoes { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; }
     .zerar-acoes .btn-danger.btn-app { min-height: 52px; font-size: 17px; }
+
+/* ---------- Sim / não grandes (abastecimento) ---------- */
+
+.sim-nao { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.sim-nao-btn {
+    min-height: 54px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 15.5px;
+    color: var(--text);
+    padding: 8px 10px;
+    line-height: 1.2;
+}
+
+    .sim-nao-btn.ativo { border-color: var(--primary); background: var(--primary-50); color: var(--primary); }
+
+/* ---------- Custos (relatórios / custos e tarifa) ---------- */
+
+.custo-linha { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 15px; }
+    .custo-linha:last-of-type { border-bottom: 0; }
+    .custo-linha b { white-space: nowrap; }
+    .custo-linha.total { font-weight: 800; font-size: 16.5px; }
+.link-secao { text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 13.5px; text-decoration: none; color: var(--primary); }
+.consumo-tabela tfoot td { border-top: 2px solid var(--border); }

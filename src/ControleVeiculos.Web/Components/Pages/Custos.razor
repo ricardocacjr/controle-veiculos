@@ -1,0 +1,158 @@
+@page "/custos"
+@using ControleVeiculos.Shared.Relatorios
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Custos e tarifa</PageTitle>
+
+<a class="back-link text-decoration-none" href="relatorios"><Icon Name="chevron-left" Size="18" /> Relatórios</a>
+<h1 class="page-title">Custos e tarifa</h1>
+<p class="page-subtitle">Quanto custa o km além do combustível e quanto cobrar por km de cada empresa ou uso pessoal.</p>
+
+@if (_p is null)
+{
+    @if (_erro is null)
+    {
+        <div class="loading-block"><span class="spinner"></span> Carregando...</div>
+    }
+    <Mensagens Erro="@_erro" />
+}
+else
+{
+    <div class="section-title">Tarifa de cobrança</div>
+    <div class="card-app">
+        <div class="field mb-2">
+            <label>Valor cobrado por km rodado (R$)</label>
+            <input class="form-control km-input" type="number" inputmode="decimal" step="0.0001" @bind="_tarifa" @bind:event="oninput" disabled="@(!_podeEditar)" />
+        </div>
+        <div class="field-hint">Fixa. O relatório cobra km × tarifa de cada categoria, descontando o que o motorista pagou do bolso.</div>
+    </div>
+
+    <div class="section-title">Pneus</div>
+    <div class="card-app">
+        <div class="field-row">
+            <div class="field mb-0">
+                <label>Jogo de 4 pneus (R$)</label>
+                <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="_pneus" @bind:event="oninput" disabled="@(!_podeEditar)" />
+            </div>
+            <div class="field mb-0">
+                <label>Duram quantos km?</label>
+                <input class="form-control" type="number" inputmode="numeric" step="1000" @bind="_vidaUtil" @bind:event="oninput" disabled="@(!_podeEditar)" />
+            </div>
+        </div>
+        <div class="custo-linha mt-3"><span>Pneus por km</span><b>@PneusKm.ToString("C4")</b></div>
+    </div>
+
+    <div class="section-title">Manutenção</div>
+    <div class="card-app">
+        <div class="field mb-2">
+            <label>Óleo, filtros, freios, revisões (R$ por km)</label>
+            <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="_manutencao" @bind:event="oninput" disabled="@(!_podeEditar)" />
+        </div>
+        <div class="field-hint">Referência de mercado para picapes leves: R$ 0,10 a 0,25/km. Troque pelo valor real quando tiver as notas da revisão.</div>
+        <div class="custo-linha mt-3"><span>Extra por km (pneus + manutenção)</span><b>@ExtraKm.ToString("C4")</b></div>
+    </div>
+
+    <div class="section-title">Custo real nos últimos 90 dias</div>
+    <div class="card-app">
+        @if (_p.CombustivelPorKmRecente is { } comb)
+        {
+            <div class="custo-linha"><span>Combustível por km@(_p.KmPorLitroRecente is { } kml ? $" ({kml:N1} km/L)" : "")</span><b>@comb.ToString("C4")</b></div>
+            <div class="custo-linha"><span>+ pneus e manutenção</span><b>@ExtraKm.ToString("C4")</b></div>
+            <div class="custo-linha total"><span>Custo calculado por km</span><b>@((comb + ExtraKm).ToString("C4"))</b></div>
+            @if (_podeEditar)
+            {
+                <button type="button" class="btn btn-soft btn-app mt-3" @onclick="() => _tarifa = Math.Round(comb + ExtraKm, 4)">Usar esse custo como tarifa</button>
+            }
+            <div class="field-hint mt-2">Combustível medido de tanque cheio a tanque cheio. A tarifa não muda sozinha — isso é só referência pra revisar.</div>
+        }
+        else
+        {
+            <div class="muted">Ainda sem dois abastecimentos de tanque cheio para medir o combustível por km. Aparece aqui depois do próximo.</div>
+        }
+    </div>
+
+    <Mensagens Erro="@_erro" Sucesso="@_ok" />
+
+    @if (_podeEditar)
+    {
+        <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@_salvando" @onclick="SalvarAsync">
+            @if (_salvando)
+            {
+                <span class="spinner"></span><span>Salvando...</span>
+            }
+            else
+            {
+                <Icon Name="check" Size="22" /><span>Salvar</span>
+            }
+        </button>
+    }
+    else
+    {
+        <div class="field-hint mt-3">Só o administrador altera esses valores.</div>
+    }
+}
+
+@code {
+    private ParametrosCustoDto? _p;
+    private decimal _tarifa;
+    private decimal _pneus;
+    private int _vidaUtil;
+    private decimal _manutencao;
+    private bool _salvando;
+    private string? _erro;
+    private string? _ok;
+
+    private bool _podeEditar => AuthState.IsInRole("Admin");
+    private decimal PneusKm => _vidaUtil > 0 ? _pneus / _vidaUtil : 0;
+    private decimal ExtraKm => PneusKm + _manutencao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated || !AuthState.EhGestao)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        try
+        {
+            Aplicar(await Api.GetParametrosCustoAsync());
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _erro = "Não foi possível carregar os custos. Tente de novo.";
+        }
+    }
+
+    private void Aplicar(ParametrosCustoDto? p)
+    {
+        if (p is null)
+            return;
+        _p = p;
+        _tarifa = p.TarifaPorKm;
+        _pneus = p.PrecoJogoPneus;
+        _vidaUtil = p.VidaUtilPneusKm;
+        _manutencao = p.ManutencaoPorKm;
+    }
+
+    private async Task SalvarAsync()
+    {
+        _salvando = true;
+        _erro = _ok = null;
+        try
+        {
+            Aplicar(await Api.SalvarParametrosCustoAsync(new ParametrosCustoDto(_tarifa, _pneus, _vidaUtil, _manutencao)));
+            _ok = "✅ Custos salvos. Os relatórios já usam os novos valores.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

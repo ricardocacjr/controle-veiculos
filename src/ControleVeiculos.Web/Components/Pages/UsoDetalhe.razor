@@ -80,7 +80,7 @@ else
                 <div class="list-item">
                     <span class="avatar tone-accent"><Icon Name="fuel" Size="20" /></span>
                     <span class="list-item-main">
-                        <span class="list-item-title d-block">@a.Litros.ToString("N2") L · R$ @a.ValorTotal.ToString("N2")</span>
+                        <span class="list-item-title d-block">@a.Litros.ToString("N3") L · R$ @a.ValorTotal.ToString("N2")@(a.TanqueCheio ? "" : " · tanque não completado")@(a.PagoPeloMotorista ? " · pago pelo motorista" : "")</span>
                         <span class="list-item-sub d-block">@(a.ValorPorLitro is { } vpl ? $"R$ {vpl:N3}/L · " : "")@Rotulos.Km(a.Odometro) · @Rotulos.Hora(a.CreatedAt)</span>
                     </span>
                     @if (a.Latitude is { } lat && a.Longitude is { } lng)

@@ -241,6 +241,23 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Relatorios.RelatorioDto>();
     }
 
+    public async Task<ControleVeiculos.Shared.Relatorios.ParametrosCustoDto?> GetParametrosCustoAsync()
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, "api/relatorios/parametros");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Relatorios.ParametrosCustoDto>();
+    }
+
+    public async Task<ControleVeiculos.Shared.Relatorios.ParametrosCustoDto?> SalvarParametrosCustoAsync(ControleVeiculos.Shared.Relatorios.ParametrosCustoDto parametros)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, "api/relatorios/parametros");
+        request.Content = JsonContent.Create(parametros);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Relatorios.ParametrosCustoDto>();
+    }
+
     /// <summary>URL completa da planilha — baixada pelo navegador (cvBaixar), não pelo circuito do Blazor.</summary>
     public string RelatorioExcelUrl(DateOnly de, DateOnly ate) => UrlApi($"api/relatorios/excel?{PeriodoQuery(de, ate)}");
 

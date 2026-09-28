@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FuelEntry> FuelEntries => Set<FuelEntry>();
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<MotivoUso> MotivosUso => Set<MotivoUso>();
+    public DbSet<ParametrosCusto> ParametrosCusto => Set<ParametrosCusto>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
