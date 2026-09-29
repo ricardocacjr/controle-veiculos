@@ -61,7 +61,95 @@ else
         </div>
     </div>
 
-    @if (_uso.Importado || !string.IsNullOrWhiteSpace(_uso.Observacao))
+    @if (_ehAdmin && _edicao is null)
+    {
+        <button type="button" class="btn btn-soft btn-app mt-3" @onclick="AbrirEdicaoAsync"><Icon Name="pencil" Size="18" /><span>Editar saída</span></button>
+    }
+    <Mensagens Sucesso="@_ok" />
+
+    @if (_edicao is { } e)
+    {
+        <div class="section-title">Editar saída</div>
+        <div class="card-app edicao-card">
+            <div class="field">
+                <label>Motorista</label>
+                <select class="form-select" @bind="e.MotoristaId">
+                    @foreach (var d in _motoristas)
+                    {
+                        <option value="@d.Id">@d.Nome</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>Empresa / categoria</label>
+                <select class="form-select" @bind="e.EmpresaId">
+                    <option value="">(nenhuma)</option>
+                    @foreach (var emp in _empresas)
+                    {
+                        <option value="@emp.Id">@emp.Nome</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>Motivo</label>
+                <input class="form-control" list="motivos-edicao" @bind="e.Finalidade" @bind:event="oninput" />
+                <datalist id="motivos-edicao">
+                    @foreach (var m in _motivos)
+                    {
+                        <option value="@m"></option>
+                    }
+                </datalist>
+                <div class="field-hint">Escolha um da lista para manter o padrão.</div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Saída</label>
+                    <input class="form-control" type="datetime-local" @bind="e.Saida" />
+                </div>
+                <div class="field">
+                    <label>Km saída</label>
+                    <input class="form-control" type="number" inputmode="numeric" @bind="e.KmSaida" />
+                </div>
+            </div>
+            @if (_uso.Status == UsageRecordStatus.Finalizado)
+            {
+                <div class="field-row">
+                    <div class="field">
+                        <label>Chegada</label>
+                        <input class="form-control" type="datetime-local" @bind="e.Chegada" />
+                    </div>
+                    <div class="field">
+                        <label>Km chegada</label>
+                        <input class="form-control" type="number" inputmode="numeric" @bind="e.KmChegada" />
+                    </div>
+                </div>
+                @if (e.KmChegada is { } kc && kc >= e.KmSaida)
+                {
+                    <div class="field-hint mb-3">= @((kc - e.KmSaida).ToString("N0")) km rodados</div>
+                }
+            }
+            <div class="field">
+                <label>Observação</label>
+                <textarea class="form-control" rows="3" @bind="e.Observacao"></textarea>
+            </div>
+            <Mensagens Erro="@_erroEdicao" />
+            <div class="zerar-acoes">
+                <button type="button" class="btn btn-soft btn-app" disabled="@_salvando" @onclick="() => _edicao = null">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-app" disabled="@_salvando" @onclick="SalvarEdicaoAsync">
+                    @if (_salvando)
+                    {
+                        <span class="spinner"></span><span>Salvando...</span>
+                    }
+                    else
+                    {
+                        <Icon Name="check" Size="20" /><span>Salvar</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (_edicao is null && (_uso.Importado || !string.IsNullOrWhiteSpace(_uso.Observacao)))
     {
         <div class="card-app mt-3">
             @if (_uso.Importado)
@@ -104,7 +192,37 @@ else
                             <Icon Name="pin" Size="18" />
                         </a>
                     }
+                    @if (_ehAdmin && _abastEdicao?.Id != a.Id)
+                    {
+                        <button class="btn-icon" title="Editar abastecimento" @onclick="() => AbrirAbastecimento(a)"><Icon Name="pencil" Size="18" /></button>
+                    }
                 </div>
+                @if (_abastEdicao is { } ab && ab.Id == a.Id)
+                {
+                    <div class="abast-edicao">
+                        <div class="field-row">
+                            <div class="field mb-2">
+                                <label>Litros</label>
+                                <input class="form-control" type="number" inputmode="decimal" step="0.001" @bind="ab.Litros" />
+                            </div>
+                            <div class="field mb-2">
+                                <label>Valor (R$)</label>
+                                <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="ab.Valor" />
+                            </div>
+                        </div>
+                        <div class="field mb-2">
+                            <label>Km no abastecimento</label>
+                            <input class="form-control" type="number" inputmode="numeric" @bind="ab.Km" />
+                        </div>
+                        <label class="zerar-manter mb-2"><input type="checkbox" @bind="ab.TanqueCheio" /><span>Encheu o tanque</span></label>
+                        <label class="zerar-manter mb-2"><input type="checkbox" @bind="ab.DoBolso" /><span>Pago pelo motorista (do bolso)</span></label>
+                        <Mensagens Erro="@_erroAbast" />
+                        <div class="zerar-acoes">
+                            <button type="button" class="btn btn-soft" disabled="@_salvando" @onclick="() => _abastEdicao = null">Cancelar</button>
+                            <button type="button" class="btn btn-primary" disabled="@_salvando" @onclick="SalvarAbastecimentoAsync">Salvar</button>
+                        </div>
+                    </div>
+                }
             }
         </div>
     }
@@ -178,6 +296,131 @@ else
     private string? _error;
     private bool _excluindo;
     private string? _erroExcluir;
+
+    private bool _ehAdmin => AuthState.IsInRole("Admin");
+    private EdicaoModel? _edicao;
+    private AbastecimentoModel? _abastEdicao;
+    private List<ControleVeiculos.Shared.Drivers.DriverDto> _motoristas = [];
+    private List<ControleVeiculos.Shared.Empresas.EmpresaDto> _empresas = [];
+    private List<string> _motivos = [];
+    private bool _salvando;
+    private string? _erroEdicao;
+    private string? _erroAbast;
+    private string? _ok;
+
+    private static readonly TimeSpan Brasilia = TimeSpan.FromHours(-3);
+
+    private class EdicaoModel
+    {
+        public Guid MotoristaId { get; set; }
+        public Guid? EmpresaId { get; set; }
+        public string Finalidade { get; set; } = "";
+        public DateTime Saida { get; set; }
+        public DateTime? Chegada { get; set; }
+        public int KmSaida { get; set; }
+        public int? KmChegada { get; set; }
+        public string? Observacao { get; set; }
+    }
+
+    private class AbastecimentoModel
+    {
+        public Guid Id { get; set; }
+        public decimal Litros { get; set; }
+        public decimal Valor { get; set; }
+        public int Km { get; set; }
+        public bool TanqueCheio { get; set; }
+        public bool DoBolso { get; set; }
+    }
+
+    private async Task AbrirEdicaoAsync()
+    {
+        _ok = _erroEdicao = null;
+        try
+        {
+            var motoristas = Api.GetDriversAsync();
+            var empresas = Api.GetEmpresasAsync();
+            var motivos = Api.GetMotivosEmUsoAsync();
+            await Task.WhenAll(motoristas, empresas, motivos);
+            _motoristas = motoristas.Result.OrderBy(d => d.Nome).ToList();
+            _empresas = empresas.Result.OrderBy(x => x.Nome).ToList();
+            _motivos = motivos.Result.Select(m => m.Nome).ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _ok = null;
+            _erroEdicao = "Não foi possível carregar motoristas/empresas.";
+        }
+
+        _edicao = new EdicaoModel
+        {
+            MotoristaId = _uso!.MotoristaId,
+            EmpresaId = _uso.EmpresaId,
+            Finalidade = _uso.Finalidade,
+            Saida = _uso.IniciadoEm.ToOffset(Brasilia).DateTime,
+            Chegada = _uso.FinalizadoEm?.ToOffset(Brasilia).DateTime,
+            KmSaida = _uso.OdometroInicial,
+            KmChegada = _uso.OdometroFinal,
+            Observacao = _uso.Observacao,
+        };
+    }
+
+    private async Task SalvarEdicaoAsync()
+    {
+        var e = _edicao!;
+        _salvando = true;
+        _erroEdicao = null;
+        try
+        {
+            var atualizado = await Api.EditarUsoAsync(Id, new ControleVeiculos.Shared.UsageRecords.UpdateUsageRequest(
+                e.MotoristaId, e.EmpresaId, e.Finalidade, e.KmSaida, e.KmChegada,
+                new DateTimeOffset(e.Saida, Brasilia),
+                e.Chegada is { } c ? new DateTimeOffset(c, Brasilia) : null,
+                e.Observacao));
+            if (atualizado is not null)
+                _uso = atualizado;
+            _edicao = null;
+            _ok = "✅ Saída atualizada.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroEdicao = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private void AbrirAbastecimento(ControleVeiculos.Shared.UsageRecords.FuelEntryDto a)
+    {
+        _erroAbast = _ok = null;
+        _abastEdicao = new AbastecimentoModel
+        {
+            Id = a.Id, Litros = a.Litros, Valor = a.ValorTotal, Km = a.Odometro, TanqueCheio = a.TanqueCheio, DoBolso = a.PagoPeloMotorista,
+        };
+    }
+
+    private async Task SalvarAbastecimentoAsync()
+    {
+        var a = _abastEdicao!;
+        _salvando = true;
+        _erroAbast = null;
+        try
+        {
+            await Api.EditarAbastecimentoAsync(Id, a.Id, new ControleVeiculos.Shared.UsageRecords.UpdateFuelEntryRequest(a.Litros, a.Valor, a.Km, a.TanqueCheio, a.DoBolso));
+            _uso = await Api.GetUsageRecordDetailAsync(Id) ?? _uso;
+            _abastEdicao = null;
+            _ok = "✅ Abastecimento atualizado.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroAbast = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
 
     private async Task ExcluirAsync()
     {

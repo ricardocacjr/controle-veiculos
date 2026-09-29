@@ -1,0 +1,141 @@
+@page "/motivos"
+@using ControleVeiculos.Shared.UsageRecords
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Padronizar motivos</PageTitle>
+
+<a class="back-link text-decoration-none" href="usos"><Icon Name="chevron-left" Size="18" /> Usos</a>
+<h1 class="page-title">Padronizar motivos</h1>
+<p class="page-subtitle">
+    Deixe os motivos com o mesmo nome (ex.: "ML / Shopee / Andréa" e "ML / Shopee / Carrefour" viram "ML / Shopee").
+    Para <b>juntar</b> dois motivos, renomeie um com o nome do outro. Vale para todas as saídas e para a lista que o motorista vê.
+</p>
+
+<Mensagens Erro="@_erro" Sucesso="@_ok" />
+
+@if (_motivos is null)
+{
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
+}
+else if (_motivos.Count == 0)
+{
+    <div class="empty-state"><div>Nenhum motivo ainda.</div></div>
+}
+else
+{
+    <datalist id="motivos-lista">
+        @foreach (var m in _motivos)
+        {
+            <option value="@m.Nome"></option>
+        }
+    </datalist>
+
+    <div class="list-card">
+        @foreach (var m in _motivos)
+        {
+            <div class="list-item motivo-item">
+                <span class="list-item-main">
+                    <span class="list-item-title d-block">@m.Nome</span>
+                    <span class="list-item-sub d-block">@(m.Saidas == 0 ? "sem saídas (só na lista do motorista)" : m.Saidas == 1 ? "1 saída" : $"{m.Saidas} saídas")</span>
+                    @if (_editando == m.Nome)
+                    {
+                        <div class="motivo-edicao">
+                            <input class="form-control" list="motivos-lista" @bind="_novoNome" @bind:event="oninput" placeholder="Novo nome (ou o nome de outro motivo para juntar)" />
+                            <div class="motivo-acoes">
+                                <button type="button" class="btn btn-soft" disabled="@_salvando" @onclick="() => _editando = null">Cancelar</button>
+                                <button type="button" class="btn btn-primary" disabled="@(_salvando || string.IsNullOrWhiteSpace(_novoNome) || _novoNome.Trim() == m.Nome)" @onclick="() => AplicarAsync(m)">
+                                    @(Existe(_novoNome, m.Nome) ? "Juntar" : "Renomear")
+                                </button>
+                            </div>
+                            @if (Existe(_novoNome, m.Nome))
+                            {
+                                <div class="field-hint mt-1">As @m.Saidas saída(s) de "@m.Nome" passam para "@_novoNome!.Trim()".</div>
+                            }
+                        </div>
+                    }
+                </span>
+                @if (_editando != m.Nome && _podeEditar)
+                {
+                    <button class="btn-icon" title="Renomear ou juntar" @onclick="() => Editar(m)"><Icon Name="pencil" Size="18" /></button>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<MotivoEmUsoDto>? _motivos;
+    private string? _editando;
+    private string? _novoNome;
+    private bool _salvando;
+    private string? _erro;
+    private string? _ok;
+
+    private bool _podeEditar => AuthState.IsInRole("Admin");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated || !AuthState.EhGestao)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        try
+        {
+            _motivos = (await Api.GetMotivosEmUsoAsync()).ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _erro = "Não foi possível carregar os motivos.";
+            _motivos = [];
+        }
+    }
+
+    private bool Existe(string? nome, string atual) =>
+        !string.IsNullOrWhiteSpace(nome) && _motivos!.Any(m => m.Nome != atual && string.Equals(m.Nome, nome.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private void Editar(MotivoEmUsoDto m)
+    {
+        _editando = m.Nome;
+        _novoNome = m.Nome;
+        _erro = _ok = null;
+    }
+
+    private async Task AplicarAsync(MotivoEmUsoDto m)
+    {
+        // Juntar com um existente usa o nome exato dele (mesma grafia).
+        var para = _motivos!.FirstOrDefault(x => x.Nome != m.Nome && string.Equals(x.Nome, _novoNome!.Trim(), StringComparison.OrdinalIgnoreCase))?.Nome
+            ?? _novoNome!.Trim();
+        var pergunta = m.Saidas == 0
+            ? $"Trocar \"{m.Nome}\" por \"{para}\" na lista de motivos?"
+            : $"Trocar \"{m.Nome}\" por \"{para}\" em {m.Saidas} saída(s)?";
+        if (!await JS.InvokeAsync<bool>("confirm", pergunta))
+            return;
+
+        _salvando = true;
+        _erro = _ok = null;
+        try
+        {
+            var n = await Api.RenomearMotivoAsync(m.Nome, para);
+            _ok = $"✅ \"{m.Nome}\" agora é \"{para}\"" + (n > 0 ? $" ({n} saída(s) atualizada(s))." : ".");
+            _editando = null;
+            await CarregarAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

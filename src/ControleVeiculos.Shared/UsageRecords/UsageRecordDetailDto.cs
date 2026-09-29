@@ -23,4 +23,5 @@ public record UsageRecordDetailDto(
     double? LatitudeInicial = null,
     double? LongitudeInicial = null,
     bool Importado = false,
-    string? Observacao = null);
+    string? Observacao = null,
+    Guid? EmpresaId = null);

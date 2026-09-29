@@ -11,6 +11,10 @@
 }
 <h1 class="page-title">@Titulo</h1>
 <p class="page-subtitle">@(_ehMotorista ? "Suas saídas com o veículo." : "Todas as saídas registradas pelos motoristas.")</p>
+@if (!_ehMotorista && AuthState.EhGestao)
+{
+    <a class="link-secao d-inline-block mb-3" href="motivos">✏ Padronizar motivos</a>
+}
 
 @if (_error is not null)
 {

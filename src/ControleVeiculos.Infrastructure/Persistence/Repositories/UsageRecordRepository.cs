@@ -67,6 +67,21 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .OrderBy(u => u.IniciadoEm)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<(string Finalidade, int Saidas)>> ContarFinalidadesAsync(CancellationToken ct = default)
+    {
+        var grupos = await Set.AsNoTracking()
+            .GroupBy(u => u.Finalidade)
+            .Select(g => new { Finalidade = g.Key, Saidas = g.Count() })
+            .ToListAsync(ct);
+        return grupos.Select(g => (g.Finalidade, g.Saidas)).ToList();
+    }
+
+    public async Task<int> RenomearFinalidadeAsync(string de, string para, CancellationToken ct = default) =>
+        await Set.Where(u => u.Finalidade == de)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.Finalidade, para)
+                .SetProperty(u => u.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
     public async Task<IReadOnlyList<Guid>> ExcluirAsync(IReadOnlyCollection<Guid>? ids, bool manterImportados = false, CancellationToken ct = default)
     {
         var alvo = await (ids is null ? Set : Set.Where(u => ids.Contains(u.Id)))

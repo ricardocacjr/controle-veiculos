@@ -217,6 +217,40 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<List<UsageRecordDto>>() ?? [];
     }
 
+    public async Task<UsageRecordDetailDto?> EditarUsoAsync(Guid id, UpdateUsageRequest dados)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/usagerecords/{id}");
+        request.Content = JsonContent.Create(dados);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<UsageRecordDetailDto>();
+    }
+
+    public async Task EditarAbastecimentoAsync(Guid usoId, Guid abastecimentoId, UpdateFuelEntryRequest dados)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Put, $"api/usagerecords/{usoId}/abastecimentos/{abastecimentoId}");
+        request.Content = JsonContent.Create(dados);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
+    public async Task<IReadOnlyList<MotivoEmUsoDto>> GetMotivosEmUsoAsync()
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, "api/motivosuso/em-uso");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<MotivoEmUsoDto>>() ?? [];
+    }
+
+    public async Task<int> RenomearMotivoAsync(string de, string para)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Post, "api/motivosuso/renomear");
+        request.Content = JsonContent.Create(new RenomearMotivoRequest(de, para));
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return (await response.Content.ReadFromJsonAsync<RenomearMotivoResponse>())?.Saidas ?? 0;
+    }
+
     public async Task ExcluirUsoAsync(Guid id)
     {
         using var request = AuthorizedRequest(HttpMethod.Delete, $"api/usagerecords/{id}");

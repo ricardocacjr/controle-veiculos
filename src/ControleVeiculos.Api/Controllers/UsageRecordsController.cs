@@ -60,6 +60,98 @@ public class UsageRecordsController(
         return Ok(ToDetailDto(usage));
     }
 
+    /// <summary>Corrige uma saída (motorista, empresa, motivo, km, horários, observação). Só Admin.</summary>
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<UsageRecordDetailDto>> Editar(Guid id, UpdateUsageRequest request, CancellationToken ct)
+    {
+        var usage = await usageRepository.GetWithDetailsAsync(id, ct);
+        if (usage is null)
+            return NotFound();
+
+        var finalidade = request.Finalidade?.Trim() ?? "";
+        if (finalidade.Length == 0)
+            return BadRequest("Informe o motivo.");
+        if (request.OdometroInicial <= 0)
+            return BadRequest("Informe o km de saída.");
+
+        var encerrada = usage.Status == UsageRecordStatus.Finalizado;
+        if (encerrada && (request.OdometroFinal is null || request.FinalizadoEm is null))
+            return BadRequest("Saída encerrada precisa do km e do horário de chegada.");
+        if (request.OdometroFinal is { } kmFim && kmFim < request.OdometroInicial)
+            return BadRequest("O km de chegada não pode ser menor que o de saída.");
+        if (request.FinalizadoEm is { } fim && fim < request.IniciadoEm)
+            return BadRequest("A chegada não pode ser antes da saída.");
+
+        var motorista = await driverRepository.GetByIdAsync(request.MotoristaId, ct);
+        if (motorista is null)
+            return BadRequest("Motorista não encontrado.");
+        if (request.EmpresaId is { } empresaId && await empresaRepository.GetByIdAsync(empresaId, ct) is null)
+            return BadRequest("Empresa não encontrada.");
+
+        usage.MotoristaId = motorista.Id;
+        usage.EmpresaId = request.EmpresaId;
+        usage.Finalidade = finalidade;
+        usage.OdometroInicial = request.OdometroInicial;
+        usage.IniciadoEm = request.IniciadoEm;
+        if (encerrada)
+        {
+            usage.OdometroFinal = request.OdometroFinal;
+            usage.FinalizadoEm = request.FinalizadoEm;
+        }
+        usage.Observacao = string.IsNullOrWhiteSpace(request.Observacao) ? null : request.Observacao.Trim();
+        usage.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await motivoUsoRepository.EnsureExistsAsync(finalidade, ct);
+        await AcertarKmDoVeiculoAsync(usage, ct);
+        await usageRepository.SaveChangesAsync(ct);
+
+        var atualizado = await usageRepository.GetWithDetailsAsync(id, ct);
+        return Ok(ToDetailDto(atualizado!));
+    }
+
+    /// <summary>Corrige um abastecimento (litros, valor, km, tanque cheio, quem pagou). Só Admin.</summary>
+    [HttpPut("{id:guid}/abastecimentos/{abastecimentoId:guid}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<FuelEntryDto>> EditarAbastecimento(Guid id, Guid abastecimentoId, UpdateFuelEntryRequest request, CancellationToken ct)
+    {
+        var usage = await usageRepository.GetWithDetailsAsync(id, ct);
+        var entrada = usage?.Abastecimentos.FirstOrDefault(a => a.Id == abastecimentoId);
+        if (usage is null || entrada is null)
+            return NotFound();
+        if (request.Litros <= 0 || request.ValorTotal <= 0)
+            return BadRequest("Informe os litros e o valor do abastecimento.");
+        if (request.Odometro < usage.OdometroInicial)
+            return BadRequest($"O km do abastecimento ({request.Odometro:N0}) é menor que o da saída ({usage.OdometroInicial:N0}).");
+
+        entrada.Litros = request.Litros;
+        entrada.ValorTotal = request.ValorTotal;
+        entrada.ValorPorLitro = Math.Round(request.ValorTotal / request.Litros, 3);
+        entrada.Odometro = request.Odometro;
+        entrada.TanqueCheio = request.TanqueCheio;
+        entrada.PagoPeloMotorista = request.PagoPeloMotorista;
+        entrada.UpdatedAt = DateTimeOffset.UtcNow;
+        await usageRepository.SaveChangesAsync(ct);
+        return Ok(ToFuelDto(entrada));
+    }
+
+    /// <summary>Se a saída corrigida é a mais recente do carro, o km atual dele acompanha a correção
+    /// (senão um km digitado errado ficaria preso como referência da próxima leitura).</summary>
+    private async Task AcertarKmDoVeiculoAsync(UsageRecord usage, CancellationToken ct)
+    {
+        var ultima = (await usageRepository.ListByVeiculoAsync(usage.VeiculoId, ct)).FirstOrDefault();
+        if (ultima is null || ultima.Id != usage.Id)
+            return;
+
+        var vehicle = await vehicleRepository.GetByIdAsync(usage.VeiculoId, ct);
+        if (vehicle is null)
+            return;
+        vehicle.OdometroAtual = usage.Abastecimentos.Select(a => a.Odometro)
+            .Append(usage.OdometroFinal ?? usage.OdometroInicial)
+            .Max();
+        vehicleRepository.Update(vehicle);
+    }
+
     /// <summary>Apaga uma saída (ex.: feita num treinamento) com fotos, áudios e abastecimentos. Só Admin.</summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = Roles.Admin)]
@@ -419,7 +511,7 @@ public class UsageRecordsController(
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
         u.Abastecimentos.OrderBy(a => a.CreatedAt).Select(ToFuelDto).ToList(),
-        u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao);
+        u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao, u.EmpresaId);
 
     private static FuelEntryDto ToFuelDto(FuelEntry a) =>
         new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista);
