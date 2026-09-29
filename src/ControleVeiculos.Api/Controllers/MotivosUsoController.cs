@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ControleVeiculos.Application.Interfaces;
+using ControleVeiculos.Domain.Entities;
 using ControleVeiculos.Infrastructure.Identity;
 using ControleVeiculos.Shared.UsageRecords;
 
@@ -47,7 +48,7 @@ public class MotivosUsoController(IMotivoUsoRepository motivoUsoRepository, IUsa
     public async Task<ActionResult<RenomearMotivoResponse>> Renomear(RenomearMotivoRequest request, CancellationToken ct)
     {
         var de = request.De ?? "";
-        var para = request.Para?.Trim() ?? "";
+        var para = MotivoUso.Normalizar(request.Para);
         if (de.Length == 0 || para.Length == 0)
             return BadRequest("Informe o motivo atual e o novo nome.");
         if (de == para)
@@ -68,7 +69,7 @@ public class MotivosUsoController(IMotivoUsoRepository motivoUsoRepository, IUsa
     [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
     public async Task<IActionResult> Create(CreateMotivoUsoRequest request, CancellationToken ct)
     {
-        var nome = request.Nome.Trim();
+        var nome = MotivoUso.Normalizar(request.Nome);
         if (nome.Length == 0)
             return BadRequest("Informe o motivo.");
 

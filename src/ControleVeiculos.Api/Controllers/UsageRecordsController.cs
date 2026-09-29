@@ -69,7 +69,7 @@ public class UsageRecordsController(
         if (usage is null)
             return NotFound();
 
-        var finalidade = request.Finalidade?.Trim() ?? "";
+        var finalidade = MotivoUso.Normalizar(request.Finalidade);
         if (finalidade.Length == 0)
             return BadRequest("Informe o motivo.");
         if (request.OdometroInicial <= 0)
@@ -247,7 +247,7 @@ public class UsageRecordsController(
             origem = await geocodingService.ReverseGeocodeAsync(lat, lon, ct);
 
         // Sem o Trim, "Busca de material " (espaço digitado no celular) viraria um motivo duplicado.
-        var finalidade = request.Finalidade.Trim();
+        var finalidade = MotivoUso.Normalizar(request.Finalidade);
         if (finalidade.Length == 0)
             return BadRequest("Informe a finalidade.");
 

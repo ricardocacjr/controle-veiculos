@@ -11,7 +11,8 @@ public class MotivoUsoRepository(AppDbContext context) : RepositoryBase<MotivoUs
 
     public async Task EnsureExistsAsync(string nome, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(nome))
+        nome = MotivoUso.Normalizar(nome);
+        if (nome.Length == 0)
             return;
 
         var existente = await GetByNomeAsync(nome, ct);
