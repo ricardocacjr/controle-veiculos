@@ -41,7 +41,8 @@ public record CustosDto(
     decimal CustoReal,
     decimal ValorACobrar,
     decimal? KmPorLitro,
-    decimal? PrecoMedioLitro);
+    decimal? PrecoMedioLitro,
+    decimal? CombustivelDosKm = null);
 
 public record GrupoDto(
     string Nome,

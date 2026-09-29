@@ -190,7 +190,8 @@ public static class RelatorioCalculadora
             Math.Round(resumo.KmRodados * custoKmEfetivo, 2),
             doPeriodo.Sum(u => ValorACobrar(u, parametros.TarifaPorKm)),
             kmPorLitro,
-            litrosPeriodo > 0 ? Math.Round(gasto / litrosPeriodo, 3) : null);
+            litrosPeriodo > 0 ? Math.Round(gasto / litrosPeriodo, 3) : null,
+            combustivelKm is { } ckm ? Math.Round(resumo.KmRodados * ckm, 2) : null);
 
         return new RelatorioDto(
             de, ate, resumo, custos,

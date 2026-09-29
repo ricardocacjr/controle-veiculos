@@ -54,7 +54,7 @@ public static class RelatorioExcel
             ("COMBUSTÍVEL", Blank.Value, null),
             ("Abastecimentos", r.Abastecimentos, null),
             ("Litros", r.Litros, FormatoLitros),
-            ("Gasto total com combustível", r.GastoCombustivel, FormatoReais),
+            ("Pago nos postos no período (todos os abastecimentos)", r.GastoCombustivel, FormatoReais),
             ("  pago pela empresa", r.GastoEmpresa, FormatoReais),
             ("  pago pelos motoristas (do bolso)", r.PagoPelosMotoristas, FormatoReais),
             ("Preço médio do litro", Opcional(c.PrecoMedioLitro), "\"R$\" #,##0.000"),
@@ -64,6 +64,7 @@ public static class RelatorioExcel
             ("Pneus por km", c.PneusPorKm, FormatoReaisKm),
             ("Manutenção por km", c.ManutencaoPorKm, FormatoReaisKm),
             ("Custo calculado por km (combustível + pneus + manutenção)", Opcional(c.CustoTotalPorKm), FormatoReaisKm),
+            ("Combustível dos km rodados (km × combustível por km)", Opcional(c.CombustivelDosKm), FormatoReais),
             ("Custo real dos km rodados", c.CustoReal, FormatoReais),
             ("COBRANÇA", Blank.Value, null),
             ("Tarifa adotada por km", c.TarifaPorKm, FormatoReaisKm),
@@ -82,7 +83,7 @@ public static class RelatorioExcel
         }
         var nota = 5 + linhas.Length;
         ws.Cell(nota, 1).Value = "Km e horas contam só saídas encerradas. O combustível do km vem dos ciclos de tanque cheio: o primeiro tanque cheio (\"dia zero\") só marca o ponto de partida; o abastecimento que fecha o ciclo paga os km rodados nele.";
-        ws.Cell(nota + 1, 1).Value = "Valor a cobrar usa a tarifa fixa (aba Parâmetros); o custo calculado serve de referência para revisá-la.";
+        ws.Cell(nota + 1, 1).Value = "Pago nos postos ≠ combustível dos km: um abastecimento pode repor km de antes do período (ex.: o dia zero) ou deixar o tanque cheio para os próximos. Valor a cobrar usa a tarifa fixa (aba Parâmetros); o custo calculado serve de referência para revisá-la.";
         ws.Range(nota, 1, nota + 1, 1).Style.Font.SetItalic().Font.SetFontColor(XLColor.Gray);
         ws.Column(1).Width = 62;
         ws.Column(2).Width = 18;
