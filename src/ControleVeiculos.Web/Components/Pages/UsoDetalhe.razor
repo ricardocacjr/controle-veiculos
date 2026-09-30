@@ -331,7 +331,7 @@ else
     private string? _ok;
 
     private static readonly TimeSpan Brasilia = TimeSpan.FromHours(-3);
-    private string TextoBase => $"{Base.Nome} - {Base.Endereco}";
+    private string TextoBase => Base.Endereco;
 
     private class EdicaoModel
     {

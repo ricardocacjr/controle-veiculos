@@ -52,7 +52,7 @@
             <div class="reading-label">Onde o carro ficou</div>
             @if (_posicao is { Ok: true } p && !_naBase)
             {
-                <div class="notice notice-info">Você está a @DistanciaTexto(p) da @Base.Nome.</div>
+                <div class="notice notice-info">Você está a @DistanciaTexto(p) da @Base.Endereco.</div>
             }
             <LocalLido NaBase="_naBase" Endereco="@_enderecoGps" Posicao="_posicao" />
             @if (_posicao?.Ok != true)
@@ -87,7 +87,7 @@ else
         </div>
         <div class="summary-row">
             <Icon Name="pin" Class="summary-icon" />
-            <span><span class="summary-key">Ficou em</span><span class="summary-value">@(_localChegada == $"{Base.Nome} - {Base.Endereco}" ? Base.Nome : !string.IsNullOrWhiteSpace(_localChegada) ? _localChegada : "Não informado")</span></span>
+            <span><span class="summary-key">Ficou em</span><span class="summary-value">@(!string.IsNullOrWhiteSpace(_localChegada) ? _localChegada : "Não informado")</span></span>
         </div>
         <div class="summary-row">
             <Icon Name="clock" Class="summary-icon" />
@@ -194,7 +194,7 @@ else
         _posicao = posicao;
         _naBase = posicao.Ok && Base.EstaNaBase(posicao.Lat!.Value, posicao.Lng!.Value);
         _enderecoGps = !_naBase && posicao.Ok ? await Localizacao.EnderecoAsync(posicao.Lat!.Value, posicao.Lng!.Value) : null;
-        _localChegada = _naBase ? $"{Base.Nome} - {Base.Endereco}" : _enderecoGps;
+        _localChegada = _naBase ? Base.Endereco : _enderecoGps;
     }
 
     private async Task FinalizarAsync()

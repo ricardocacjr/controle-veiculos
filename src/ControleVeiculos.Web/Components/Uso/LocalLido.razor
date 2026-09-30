@@ -2,8 +2,7 @@
 
 @if (NaBase)
 {
-    <span class="place-pill chip-success"><Icon Name="check" Size="18" /> Na @Base.Nome</span>
-    <div class="muted mt-2" style="font-size:14px">@Base.Endereco</div>
+    <span class="place-pill chip-success"><Icon Name="check" Size="18" /> @Base.Endereco</span>
 }
 else if (Posicao is { Ok: true } p)
 {
