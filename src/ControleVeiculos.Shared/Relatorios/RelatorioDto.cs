@@ -23,7 +23,8 @@ public record ResumoDto(
     decimal Litros,
     decimal GastoCombustivel,
     decimal GastoEmpresa,
-    decimal PagoPelosMotoristas);
+    decimal PagoPelosMotoristas,
+    decimal DiaZeroForaDaConta = 0);
 
 /// <summary>
 /// Quanto custou o km e quanto cobrar. Combustível por km vem dos ciclos de tanque cheio → tanque

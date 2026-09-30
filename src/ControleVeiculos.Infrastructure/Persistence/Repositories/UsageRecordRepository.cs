@@ -67,6 +67,24 @@ public class UsageRecordRepository(AppDbContext context) : RepositoryBase<UsageR
             .OrderBy(u => u.IniciadoEm)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlySet<Guid>> AbastecimentosDiaZeroAsync(CancellationToken ct = default)
+    {
+        var abastecimentos = await Context.Set<FuelEntry>().AsNoTracking()
+            .Select(f => new { f.Id, f.Odometro, f.CreatedAt, f.TanqueCheio, f.Uso!.VeiculoId })
+            .ToListAsync(ct);
+
+        var diaZero = new HashSet<Guid>();
+        foreach (var carro in abastecimentos.GroupBy(f => f.VeiculoId))
+        {
+            var ordenados = carro.OrderBy(f => f.Odometro).ThenBy(f => f.CreatedAt).ToList();
+            var primeiroCheio = ordenados.FindIndex(f => f.TanqueCheio);
+            // Sem nenhum tanque cheio ainda, nada é dia zero (não dá pra saber onde começa).
+            for (var i = 0; i <= primeiroCheio; i++)
+                diaZero.Add(ordenados[i].Id);
+        }
+        return diaZero;
+    }
+
     public async Task<IReadOnlyList<(string Finalidade, int Saidas)>> ContarFinalidadesAsync(CancellationToken ct = default)
     {
         var grupos = await Set.AsNoTracking()

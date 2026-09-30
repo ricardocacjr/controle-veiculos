@@ -13,6 +13,13 @@ public interface IUsageRecordRepository : IRepository<UsageRecord>
     Task<IReadOnlyList<UsageRecord>> ListParaRelatorioAsync(DateTimeOffset desde, CancellationToken ct = default);
 
     /// <summary>Apaga as saídas (todas, se <paramref name="ids"/> for null; menos as importadas, se <paramref name="manterImportados"/>) com fotos, notas de voz e abastecimentos. Devolve os ids apagados.</summary>
+    /// <summary>
+    /// Abastecimentos do "dia zero" de cada carro: o primeiro tanque cheio da história dele (e o que
+    /// veio antes). Só marcam o ponto de partida do consumo — o combustível repôs km de antes do
+    /// sistema — e ficam fora do gasto dos relatórios.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> AbastecimentosDiaZeroAsync(CancellationToken ct = default);
+
     /// <summary>Motivos (texto exato) usados nas saídas, com a quantidade de saídas de cada um.</summary>
     Task<IReadOnlyList<(string Finalidade, int Saidas)>> ContarFinalidadesAsync(CancellationToken ct = default);
 

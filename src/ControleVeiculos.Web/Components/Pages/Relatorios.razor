@@ -80,6 +80,10 @@ else if (_rel is { } rel)
             <div class="kpi-valor">@r.GastoCombustivel.ToString("C0")</div>
             <div class="kpi-rotulo">pago nos postos</div>
             <div class="kpi-extra">@r.Litros.ToString("N1") L · @r.Abastecimentos abastec.</div>
+            @if (r.DiaZeroForaDaConta > 0)
+            {
+                <div class="kpi-extra">sem o 1º tanque cheio (@r.DiaZeroForaDaConta.ToString("C"))</div>
+            }
             @if (r.PagoPelosMotoristas > 0)
             {
                 <div class="kpi-extra">@r.PagoPelosMotoristas.ToString("C") pago pelos motoristas</div>
@@ -106,14 +110,18 @@ else if (_rel is { } rel)
             <div class="custo-linha"><span>Combustível dos km rodados</span><b>@(cu.CombustivelDosKm?.ToString("C") ?? "—")</b></div>
             <div class="custo-linha"><span>+ pneus e manutenção</span><b>@((r.KmRodados * cu.ExtraPorKm).ToString("C"))</b></div>
             <div class="custo-linha total"><span>Custo real dos km</span><b>@cu.CustoReal.ToString("C")</b></div>
-            <div class="custo-linha"><span>Pago nos postos no período</span><b>@r.GastoCombustivel.ToString("C")</b></div>
+            <div class="custo-linha"><span>Pago nos postos no período@(r.DiaZeroForaDaConta > 0 ? " (sem o 1º tanque cheio)" : "")</span><b>@r.GastoCombustivel.ToString("C")</b></div>
+            @if (r.DiaZeroForaDaConta > 0)
+            {
+                <div class="field-hint">O 1º tanque cheio do carro (@r.DiaZeroForaDaConta.ToString("C"), o &quot;dia zero&quot;) fica fora: ele repôs km de antes do sistema e só marca o ponto de partida do consumo.</div>
+            }
         </div>
         @if (cu.CombustivelDosKm is { } cdk && r.GastoCombustivel > 0 && Math.Abs(r.GastoCombustivel - cdk) > Math.Max(20, cdk * 0.1m))
         {
             <div class="field-hint mt-2">
                 @if (r.GastoCombustivel > cdk)
                 {
-                    @($"Pagou-se {(r.GastoCombustivel - cdk):C} a mais nos postos do que o combustível gasto nos km do período: algum abastecimento repôs km de antes (ex.: o primeiro tanque cheio, o \"dia zero\") ou deixou o tanque cheio para os próximos dias.")
+                    @($"Pagou-se {(r.GastoCombustivel - cdk):C} a mais nos postos do que o combustível gasto nos km do período: o tanque ficou cheio para os próximos dias (o combustível vai ser gasto nos km seguintes).")
                 }
                 else
                 {

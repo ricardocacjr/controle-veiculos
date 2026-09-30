@@ -30,10 +30,10 @@ public class EmpresasController(IEmpresaRepository empresaRepository) : Controll
     [Authorize(Roles = Roles.Admin + "," + Roles.Gestor)]
     public async Task<ActionResult<EmpresaDto>> Create(CreateEmpresaRequest request, CancellationToken ct)
     {
-        if (await empresaRepository.GetByNomeAsync(request.Nome, ct) is not null)
+        if (await empresaRepository.GetByNomeAsync(Empresa.Normalizar(request.Nome), ct) is not null)
             return BadRequest("Já existe uma empresa com esse nome.");
 
-        var empresa = new Empresa { Nome = request.Nome };
+        var empresa = new Empresa { Nome = Empresa.Normalizar(request.Nome) };
 
         await empresaRepository.AddAsync(empresa, ct);
         await empresaRepository.SaveChangesAsync(ct);
@@ -49,11 +49,11 @@ public class EmpresasController(IEmpresaRepository empresaRepository) : Controll
         if (empresa is null)
             return NotFound();
 
-        var empresaComMesmoNome = await empresaRepository.GetByNomeAsync(request.Nome, ct);
+        var empresaComMesmoNome = await empresaRepository.GetByNomeAsync(Empresa.Normalizar(request.Nome), ct);
         if (empresaComMesmoNome is not null && empresaComMesmoNome.Id != id)
             return BadRequest("Já existe uma empresa com esse nome.");
 
-        empresa.Nome = request.Nome;
+        empresa.Nome = Empresa.Normalizar(request.Nome);
         empresa.UpdatedAt = DateTimeOffset.UtcNow;
 
         empresaRepository.Update(empresa);

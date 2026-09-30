@@ -14,16 +14,16 @@ public static class RelatorioExcel
     private const string FormatoDataHora = "dd/mm/yyyy hh:mm";
     private const string FormatoReaisKm = "\"R$\" #,##0.0000";
 
-    public static byte[] Gerar(RelatorioDto rel, IReadOnlyList<UsageRecord> saidasDoPeriodo, ParametrosCusto parametros)
+    public static byte[] Gerar(RelatorioDto rel, IReadOnlyList<UsageRecord> saidasDoPeriodo, ParametrosCusto parametros, IReadOnlySet<Guid> diaZero)
     {
         using var wb = new XLWorkbook();
 
         Resumo(wb, rel);
-        Saidas(wb, saidasDoPeriodo, parametros.TarifaPorKm);
+        Saidas(wb, saidasDoPeriodo, parametros.TarifaPorKm, diaZero);
         Grupos(wb, "Por empresa", "Empresa / categoria", rel.PorEmpresa);
         Grupos(wb, "Por motorista", "Motorista", rel.PorMotorista);
         Grupos(wb, "Por motivo", "Motivo", rel.PorMotivo);
-        Abastecimentos(wb, saidasDoPeriodo);
+        Abastecimentos(wb, saidasDoPeriodo, diaZero);
         Ciclos(wb, rel.Ciclos);
         Consumo(wb, rel.Consumo);
         Alertas(wb, rel.Alertas);
@@ -54,7 +54,8 @@ public static class RelatorioExcel
             ("COMBUSTÍVEL", Blank.Value, null),
             ("Abastecimentos", r.Abastecimentos, null),
             ("Litros", r.Litros, FormatoLitros),
-            ("Pago nos postos no período (todos os abastecimentos)", r.GastoCombustivel, FormatoReais),
+            ("Pago nos postos no período (sem o 1º tanque cheio)", r.GastoCombustivel, FormatoReais),
+            ("  1º tanque cheio / dia zero (fora da conta)", r.DiaZeroForaDaConta, FormatoReais),
             ("  pago pela empresa", r.GastoEmpresa, FormatoReais),
             ("  pago pelos motoristas (do bolso)", r.PagoPelosMotoristas, FormatoReais),
             ("Preço médio do litro", Opcional(c.PrecoMedioLitro), "\"R$\" #,##0.000"),
@@ -89,7 +90,7 @@ public static class RelatorioExcel
         ws.Column(2).Width = 18;
     }
 
-    private static void Saidas(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, decimal tarifa)
+    private static void Saidas(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, decimal tarifa, IReadOnlySet<Guid> diaZero)
     {
         string[] cab = ["Saída", "Chegada", "Horas", "Motorista", "Empresa", "Motivo", "Veículo", "Km saída", "Km chegada", "Km rodados", "Saindo de", "Situação", "Litros", "Combustível (R$)", "Pago pelo motorista (R$)", "Valor a cobrar (R$)", "Observação"];
         var linhas = saidas.OrderBy(u => u.IniciadoEm).Select(u => new XLCellValue[]
@@ -106,9 +107,9 @@ public static class RelatorioExcel
             u.Status == UsageRecordStatus.Finalizado ? RelatorioCalculadora.Km(u) : Blank.Value,
             u.Origem ?? "",
             u.Status switch { UsageRecordStatus.EmAndamento => "Em andamento", UsageRecordStatus.Finalizado => "Encerrada", _ => "Cancelada" },
-            RelatorioCalculadora.Litros(u),
-            RelatorioCalculadora.Gasto(u),
-            RelatorioCalculadora.PagoPeloMotorista(u),
+            RelatorioCalculadora.Litros(u, diaZero),
+            RelatorioCalculadora.Gasto(u, diaZero),
+            RelatorioCalculadora.PagoPeloMotorista(u, diaZero),
             RelatorioCalculadora.ValorACobrar(u, tarifa),
             (u.Importado ? "[planilha] " : "") + (u.Observacao ?? ""),
         });
@@ -177,9 +178,9 @@ public static class RelatorioExcel
         ws.Column(2).Width = 16;
     }
 
-    private static void Abastecimentos(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas)
+    private static void Abastecimentos(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, IReadOnlySet<Guid> diaZero)
     {
-        string[] cab = ["Data", "Motorista", "Veículo", "Empresa", "Litros", "Valor (R$)", "R$/litro", "Km", "Tanque cheio?", "Quem pagou", "Mapa"];
+        string[] cab = ["Data", "Motorista", "Veículo", "Empresa", "Litros", "Valor (R$)", "R$/litro", "Km", "Tanque cheio?", "Quem pagou", "Entra no gasto?", "Mapa"];
         var linhas = saidas
             .SelectMany(u => u.Abastecimentos.Select(a => (u, a)))
             .OrderBy(x => x.a.CreatedAt)
@@ -195,6 +196,7 @@ public static class RelatorioExcel
                 x.a.Odometro,
                 x.a.TanqueCheio ? "Sim" : "Não",
                 x.a.PagoPeloMotorista ? "Motorista (do bolso)" : "Empresa",
+                diaZero.Contains(x.a.Id) ? "Não — 1º tanque cheio (dia zero)" : "Sim",
                 x.a.Latitude is { } lat && x.a.Longitude is { } lng
                     ? $"https://www.google.com/maps?q={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
                     : "",
@@ -205,7 +207,7 @@ public static class RelatorioExcel
         Formatar(ws, [6], FormatoReais);
         Formatar(ws, [7], "\"R$\" #,##0.000");
         Formatar(ws, [8], FormatoKm);
-        foreach (var cel in ws.Column(11).CellsUsed().Skip(1).Where(c => c.GetString().StartsWith("http")))
+        foreach (var cel in ws.Column(12).CellsUsed().Skip(1).Where(c => c.GetString().StartsWith("http")))
             cel.SetHyperlink(new XLHyperlink(cel.GetString()));
         Ajustar(ws);
     }

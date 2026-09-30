@@ -29,7 +29,7 @@ public class RelatoriosController(
         if (Periodo(de, ate) is not { } periodo)
             return BadRequest($"Período inválido (a data inicial deve ser antes da final, no máximo {DiasMaximos} dias).");
 
-        var (relatorio, _, _) = await MontarAsync(periodo.De, periodo.Ate, ct);
+        var (relatorio, _, _, _) = await MontarAsync(periodo.De, periodo.Ate, ct);
         return Ok(relatorio);
     }
 
@@ -39,8 +39,8 @@ public class RelatoriosController(
         if (Periodo(de, ate) is not { } periodo)
             return BadRequest($"Período inválido (a data inicial deve ser antes da final, no máximo {DiasMaximos} dias).");
 
-        var (relatorio, saidas, parametros) = await MontarAsync(periodo.De, periodo.Ate, ct);
-        var arquivo = RelatorioExcel.Gerar(relatorio, saidas, parametros);
+        var (relatorio, saidas, parametros, diaZero) = await MontarAsync(periodo.De, periodo.Ate, ct);
+        var arquivo = RelatorioExcel.Gerar(relatorio, saidas, parametros, diaZero);
         return File(arquivo, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"relatorio-veiculos-{periodo.De:yyyy-MM-dd}-a-{periodo.Ate:yyyy-MM-dd}.xlsx");
     }
@@ -90,13 +90,14 @@ public class RelatoriosController(
         return (inicio, fim);
     }
 
-    private async Task<(RelatorioDto Relatorio, List<UsageRecord> SaidasDoPeriodo, ParametrosCusto Parametros)> MontarAsync(
+    private async Task<(RelatorioDto Relatorio, List<UsageRecord> SaidasDoPeriodo, ParametrosCusto Parametros, IReadOnlySet<Guid> DiaZero)> MontarAsync(
         DateOnly de, DateOnly ate, CancellationToken ct)
     {
         var parametros = await parametrosRepository.ObterAsync(ct);
         var carregadas = await usageRepository.ListParaRelatorioAsync(RelatorioCalculadora.CarregarDesde(de, ate), ct);
-        var relatorio = RelatorioCalculadora.Calcular(carregadas, de, ate, baseOperacional.Value, parametros, DateTimeOffset.UtcNow);
+        var diaZero = await usageRepository.AbastecimentosDiaZeroAsync(ct);
+        var relatorio = RelatorioCalculadora.Calcular(carregadas, de, ate, baseOperacional.Value, parametros, DateTimeOffset.UtcNow, diaZero);
         var doPeriodo = carregadas.Where(u => RelatorioCalculadora.NoPeriodo(u, de, ate)).ToList();
-        return (relatorio, doPeriodo, parametros);
+        return (relatorio, doPeriodo, parametros, diaZero);
     }
 }

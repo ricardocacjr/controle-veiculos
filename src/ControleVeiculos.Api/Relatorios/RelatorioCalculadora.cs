@@ -88,11 +88,15 @@ public static class RelatorioCalculadora
     public static double Horas(UsageRecord u) =>
         u.Status == UsageRecordStatus.Finalizado && u.FinalizadoEm is { } fim ? Math.Max(0, (fim - u.IniciadoEm).TotalHours) : 0;
 
-    public static decimal Gasto(UsageRecord u) => u.Abastecimentos.Sum(a => a.ValorTotal);
+    /// <summary>Combustível da saída, sem os abastecimentos do "dia zero" (primeiro tanque cheio do carro: repôs km de antes do sistema).</summary>
+    public static decimal Gasto(UsageRecord u, IReadOnlySet<Guid>? diaZero = null) => Contam(u, diaZero).Sum(a => a.ValorTotal);
 
-    public static decimal PagoPeloMotorista(UsageRecord u) => u.Abastecimentos.Where(a => a.PagoPeloMotorista).Sum(a => a.ValorTotal);
+    public static decimal PagoPeloMotorista(UsageRecord u, IReadOnlySet<Guid>? diaZero = null) => Contam(u, diaZero).Where(a => a.PagoPeloMotorista).Sum(a => a.ValorTotal);
 
-    public static decimal Litros(UsageRecord u) => u.Abastecimentos.Sum(a => a.Litros);
+    public static decimal Litros(UsageRecord u, IReadOnlySet<Guid>? diaZero = null) => Contam(u, diaZero).Sum(a => a.Litros);
+
+    private static IEnumerable<FuelEntry> Contam(UsageRecord u, IReadOnlySet<Guid>? diaZero) =>
+        diaZero is null ? u.Abastecimentos : u.Abastecimentos.Where(a => !diaZero.Contains(a.Id));
 
     /// <summary>km × tarifa. Saída em que o motorista abasteceu do próprio bolso fica quitada (zero) — regra da planilha da empresa.</summary>
     public static decimal ValorACobrar(UsageRecord u, decimal tarifa) =>
@@ -159,29 +163,31 @@ public static class RelatorioCalculadora
     }
 
     public static RelatorioDto Calcular(IReadOnlyList<UsageRecord> carregadas, DateOnly de, DateOnly ate,
-        BaseOperacional? baseOperacional, ParametrosCusto parametros, DateTimeOffset agora)
+        BaseOperacional? baseOperacional, ParametrosCusto parametros, DateTimeOffset agora, IReadOnlySet<Guid>? diaZero = null)
     {
         var validas = carregadas.Where(u => u.Status != UsageRecordStatus.Cancelado).OrderBy(u => u.IniciadoEm).ToList();
         var doPeriodo = validas.Where(u => NoPeriodo(u, de, ate)).ToList();
         var ciclos = Ciclos(validas);
 
-        var gasto = doPeriodo.Sum(Gasto);
-        var pago = doPeriodo.Sum(PagoPeloMotorista);
+        var gasto = doPeriodo.Sum(u => Gasto(u, diaZero));
+        var pago = doPeriodo.Sum(u => PagoPeloMotorista(u, diaZero));
+        var foraDaConta = doPeriodo.SelectMany(u => u.Abastecimentos).Where(a => diaZero?.Contains(a.Id) == true).Sum(a => a.ValorTotal);
         var resumo = new ResumoDto(
             doPeriodo.Count,
             doPeriodo.Count(u => u.Status == UsageRecordStatus.EmAndamento),
             doPeriodo.Sum(Km),
             Math.Round(doPeriodo.Sum(Horas), 1),
-            doPeriodo.Sum(u => u.Abastecimentos.Count),
-            doPeriodo.Sum(Litros),
+            doPeriodo.Sum(u => u.Abastecimentos.Count(a => diaZero?.Contains(a.Id) != true)),
+            doPeriodo.Sum(u => Litros(u, diaZero)),
             gasto,
             gasto - pago,
-            pago);
+            pago,
+            foraDaConta);
 
         var (combustivelKm, origem, kmPorLitro) = CombustivelPorKm(ciclos, de, ate);
         var custoKm = combustivelKm is { } c ? c + parametros.ExtraPorKm : (decimal?)null;
         var custoKmEfetivo = custoKm ?? parametros.ExtraPorKm;
-        var litrosPeriodo = doPeriodo.Sum(Litros);
+        var litrosPeriodo = doPeriodo.Sum(u => Litros(u, diaZero));
         var custos = new CustosDto(
             combustivelKm, origem,
             Math.Round(parametros.PneusPorKm, 4), parametros.ManutencaoPorKm, Math.Round(parametros.ExtraPorKm, 4),
@@ -195,9 +201,9 @@ public static class RelatorioCalculadora
 
         return new RelatorioDto(
             de, ate, resumo, custos,
-            Agrupar(doPeriodo, u => u.Motorista?.Nome, custoKmEfetivo, parametros.TarifaPorKm),
-            Agrupar(doPeriodo, u => u.Empresa?.Nome, custoKmEfetivo, parametros.TarifaPorKm),
-            Agrupar(doPeriodo, u => u.Finalidade, custoKmEfetivo, parametros.TarifaPorKm),
+            Agrupar(doPeriodo, u => u.Motorista?.Nome, custoKmEfetivo, parametros.TarifaPorKm, diaZero),
+            Agrupar(doPeriodo, u => u.Empresa?.Nome, custoKmEfetivo, parametros.TarifaPorKm, diaZero),
+            Agrupar(doPeriodo, u => u.Finalidade, custoKmEfetivo, parametros.TarifaPorKm, diaZero),
             Consumo(validas, ciclos, ate),
             ciclos.Where(ci => NoPeriodo(ci.Fechamento.CreatedAt, de, ate))
                 .OrderByDescending(ci => ci.Fechamento.CreatedAt)
@@ -208,7 +214,7 @@ public static class RelatorioCalculadora
             Alertas(validas, doPeriodo, ciclos, de, ate, baseOperacional, agora));
     }
 
-    private static List<GrupoDto> Agrupar(IReadOnlyList<UsageRecord> usos, Func<UsageRecord, string?> chave, decimal custoKm, decimal tarifa)
+    private static List<GrupoDto> Agrupar(IReadOnlyList<UsageRecord> usos, Func<UsageRecord, string?> chave, decimal custoKm, decimal tarifa, IReadOnlySet<Guid>? diaZero)
     {
         var kmTotal = Math.Max(1, usos.Sum(Km));
         return usos.GroupBy(u => (chave(u) ?? "").Trim().ToUpperInvariant())
@@ -220,10 +226,10 @@ public static class RelatorioCalculadora
                     g.Count(),
                     km,
                     Math.Round(g.Sum(Horas), 1),
-                    g.Sum(Gasto),
+                    g.Sum(u => Gasto(u, diaZero)),
                     Math.Round(100.0 * km / kmTotal, 1),
                     Math.Round(km * custoKm, 2),
-                    g.Sum(PagoPeloMotorista),
+                    g.Sum(u => PagoPeloMotorista(u, diaZero)),
                     g.Sum(u => ValorACobrar(u, tarifa)));
             })
             .OrderByDescending(g => g.KmRodados)
