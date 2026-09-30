@@ -850,3 +850,12 @@
 .total-nota { font-size: 22px; font-weight: 800; padding-top: 4px; }
 .proxima-linha { padding: 8px 0; border-bottom: 1px solid var(--border); }
     .proxima-linha .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+
+.clicavel { cursor: pointer; }
+.nota-cabecalho { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.nota-titulo { font-weight: 800; font-size: 18px; line-height: 1.25; }
+.nota-itens { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .nota-itens th { font-size: 12px; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 6px 4px; border-bottom: 2px solid var(--border); text-align: left; }
+    .nota-itens td { padding: 8px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .nota-itens td:first-child { width: 42px; color: var(--muted); }
+    .nota-itens tfoot td { font-weight: 800; font-size: 17px; border-bottom: 0; border-top: 2px solid var(--border); }

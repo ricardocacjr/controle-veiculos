@@ -32,7 +32,7 @@ else
         </div>
     }
 
-    @if (Resumo is { } res && _form is null)
+    @if (Resumo is { } res && _form is null && _detalhe is null)
     {
         <div class="kpi-grid">
             <div class="kpi">
@@ -77,7 +77,7 @@ else
         }
     }
 
-    @if (_podeEditar && _form is null)
+    @if (_podeEditar && _form is null && _detalhe is null)
     {
         <button type="button" class="btn btn-primary btn-app mt-3" @onclick="NovaManutencao"><Icon Name="plus" Size="20" /><span>Registrar manutenção</span></button>
     }
@@ -208,7 +208,81 @@ else
         }
     }
 
-    @if (_form is null)
+    @if (_detalhe is { } d && _form is null)
+    {
+        <button type="button" class="back-link" @onclick="() => _detalhe = null"><Icon Name="chevron-left" Size="18" /> Voltar</button>
+        <div class="card-app nota-detalhe">
+            <div class="nota-cabecalho">
+                <div>
+                    <div class="nota-titulo">@d.Tipo</div>
+                    <div class="muted">@d.Data.ToString("dd/MM/yyyy") · @d.Km.ToString("N0") km@(d.Oficina is null ? "" : $" · {d.Oficina}")</div>
+                </div>
+            </div>
+
+            <table class="nota-itens">
+                <thead>
+                    <tr><th>Qtd</th><th>Descrição</th><th class="text-end">Valor</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in d.Itens)
+                    {
+                        <tr>
+                            <td>@item.Quantidade.ToString("0.##")</td>
+                            <td>@item.Descricao</td>
+                            <td class="text-end text-nowrap">@item.Valor.ToString("C")</td>
+                        </tr>
+                    }
+                    @if (d.MaoDeObra > 0)
+                    {
+                        <tr>
+                            <td></td>
+                            <td>Mão de obra</td>
+                            <td class="text-end text-nowrap">@d.MaoDeObra.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr><td></td><td>Total</td><td class="text-end text-nowrap">@d.Valor.ToString("C")</td></tr>
+                </tfoot>
+            </table>
+
+            @if (!string.IsNullOrWhiteSpace(d.Observacao))
+            {
+                <div class="reading-label mt-3">Observação</div>
+                <div style="white-space:pre-line">@d.Observacao</div>
+            }
+
+            @if (d.Proximas.Count > 0)
+            {
+                <div class="reading-label mt-3">Próximas</div>
+                @foreach (var p in d.Proximas)
+                {
+                    <div class="custo-linha">
+                        <span>@p.Tipo</span>
+                        <b>@string.Join(" ou ", new[] { p.ProximaKm is { } pk ? $"{pk:N0} km" : null, p.ProximaData is { } pd ? pd.ToString("dd/MM/yyyy") : null }.Where(x => x is not null))</b>
+                    </div>
+                }
+            }
+
+            @if (d.TemAnexo)
+            {
+                @if (_linkNota is not null)
+                {
+                    <a class="btn btn-soft btn-app mt-3" href="@_linkNota" target="_blank" rel="noopener">📎 Ver a nota da oficina</a>
+                }
+                else
+                {
+                    <div class="muted mt-3"><span class="spinner"></span> Preparando a nota...</div>
+                }
+            }
+            @if (_podeEditar)
+            {
+                <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => { _detalhe = null; Editar(d); }"><Icon Name="pencil" Size="18" /><span>Editar</span></button>
+            }
+        </div>
+    }
+
+    @if (_form is null && _detalhe is null)
     {
         <div class="section-title">Histórico (@_historico.Count)@(_historico.Count > 0 ? $" · {_historico.Sum(h => h.Valor):C}" : "")</div>
         @if (_historico.Count == 0)
@@ -222,7 +296,7 @@ else
                 {
                     <div class="list-item">
                         <span class="avatar tone-violet"><Icon Name="wrench" Size="20" /></span>
-                        <span class="list-item-main">
+                        <span class="list-item-main clicavel" @onclick="() => AbrirDetalhe(h)" title="Ver todos os itens">
                             <span class="list-item-title d-block" style="white-space:normal">@h.Tipo · @h.Valor.ToString("C")</span>
                             <span class="list-item-sub d-block" style="white-space:normal">
                                 @h.Data.ToString("dd/MM/yyyy") · @h.Km.ToString("N0") km@(h.Oficina is null ? "" : $" · {h.Oficina}")
@@ -230,7 +304,7 @@ else
                             </span>
                             @if (h.TemAnexo)
                             {
-                                <button type="button" class="link-troca" @onclick="() => BaixarNotaAsync(h)">📎 Ver a nota</button>
+                                <span class="link-troca" style="cursor:pointer">📎 Nota anexada — toque para ver</span>
                             }
                         </span>
                         @if (_podeEditar)
@@ -250,6 +324,26 @@ else
     private List<ManutencaoDto> _historico = [];
     private Guid _veiculoId;
     private Form? _form;
+    private ManutencaoDto? _detalhe;
+
+    private string? _linkNota;
+
+    private async Task AbrirDetalhe(ManutencaoDto h)
+    {
+        _erro = _ok = null;
+        _detalhe = h;
+        _linkNota = null;
+        if (!h.TemAnexo)
+            return;
+        try
+        {
+            _linkNota = await Api.GetLinkNotaAsync(h.Id);
+        }
+        catch (HttpRequestException)
+        {
+            _erro = "Não consegui preparar a nota. Tente de novo.";
+        }
+    }
     private Guid? _editandoId;
     private bool _salvando;
     private string? _erro;
@@ -320,6 +414,7 @@ else
     private async Task TrocarVeiculoAsync(Guid id)
     {
         _veiculoId = id;
+        _detalhe = null;
         _form = null;
         await CarregarAsync();
     }
@@ -432,19 +527,6 @@ else
         }
     }
 
-    private async Task BaixarNotaAsync(ManutencaoDto h)
-    {
-        _erro = null;
-        try
-        {
-            var nome = $"nota-oficina-{h.Data:yyyy-MM-dd}";
-            _erro = await JS.InvokeAsync<string?>("cvBaixar", Api.AnexoManutencaoUrl(h.Id), AuthState.Token, nome);
-        }
-        catch (JSException)
-        {
-            _erro = "Não consegui abrir a nota.";
-        }
-    }
 
     private async Task ExcluirAsync(ManutencaoDto h)
     {

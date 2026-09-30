@@ -275,8 +275,14 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         await EnsureSuccessWithApiErrorAsync(response);
     }
 
-    /// <summary>Endereço da nota anexada (baixada pelo navegador com cvBaixar).</summary>
-    public string AnexoManutencaoUrl(Guid id) => UrlApi($"api/manutencoes/{id}/anexo");
+
+    public async Task<string?> GetLinkNotaAsync(Guid id)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, $"api/manutencoes/{id}/anexo/link");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return (await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Manutencoes.LinkAnexoDto>())?.Url;
+    }
 
     public async Task ExcluirManutencaoAsync(Guid id)
     {

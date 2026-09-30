@@ -38,6 +38,8 @@ public class Manutencao : BaseEntity, ITenantScoped
 public class ManutencaoItem : BaseEntity
 {
     public required Guid ManutencaoId { get; set; }
+    /// <summary>Posição do item na nota (mostra na mesma ordem da oficina).</summary>
+    public int Ordem { get; set; }
     public decimal Quantidade { get; set; } = 1;
     public required string Descricao { get; set; }
     public decimal Valor { get; set; }

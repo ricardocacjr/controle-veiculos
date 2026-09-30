@@ -159,3 +159,6 @@ public static class CategoriasManutencao
         return sb.ToString();
     }
 }
+
+/// <summary>Link temporário (assinado) pra abrir a nota da oficina no navegador.</summary>
+public record LinkAnexoDto(string Url);

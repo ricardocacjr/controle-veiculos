@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
+using ControleVeiculos.Api.Auth;
 using ControleVeiculos.Api.Relatorios;
 using ControleVeiculos.Application.Interfaces;
 using ControleVeiculos.Domain.Entities;
@@ -19,9 +23,13 @@ public class ManutencoesController(
     IManutencaoRepository manutencaoRepository,
     IVehicleRepository vehicleRepository,
     IUsageRecordRepository usageRepository,
-    ITextoDocumentoService textoDocumento) : ControllerBase
+    ITextoDocumentoService textoDocumento,
+    IOptions<JwtOptions> jwt) : ControllerBase
 {
     private const long TamanhoMaximoNota = 10 * 1024 * 1024;
+
+    /// <summary>Link pra abrir a nota vale só alguns minutos (o navegador abre direto, sem o token de login).</summary>
+    private static readonly TimeSpan ValidadeLink = TimeSpan.FromMinutes(10);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ManutencaoDto>>> Listar([FromQuery] Guid? veiculoId, CancellationToken ct) =>
@@ -82,6 +90,46 @@ public class ManutencoesController(
         if (manutencao?.AnexoId is not { } anexoId || await manutencaoRepository.ObterAnexoAsync(anexoId, ct) is not { } anexo)
             return NotFound();
         return File(anexo.Conteudo, anexo.ContentType, $"{manutencao.Data:yyyy-MM-dd}-{anexo.Nome}");
+    }
+
+    /// <summary>
+    /// Link assinado pra ABRIR a nota no navegador (PDF/foto no visualizador do celular) em vez de
+    /// baixar. Vale 10 minutos; a assinatura usa a chave do JWT, então não dá pra forjar.
+    /// </summary>
+    [HttpGet("{id:guid}/anexo/link")]
+    public async Task<ActionResult<LinkAnexoDto>> LinkAnexo(Guid id, CancellationToken ct)
+    {
+        var manutencao = await manutencaoRepository.GetByIdAsync(id, ct);
+        if (manutencao?.AnexoId is null)
+            return NotFound();
+        var expira = DateTimeOffset.UtcNow.Add(ValidadeLink).ToUnixTimeSeconds();
+        var url = Url.ActionLink(nameof(AbrirAnexo), values: new { id, exp = expira, sig = Assinar(id, expira) })!;
+        return Ok(new LinkAnexoDto(url));
+    }
+
+    [HttpGet("{id:guid}/anexo/abrir")]
+    [AllowAnonymous]
+    public async Task<IActionResult> AbrirAnexo(Guid id, [FromQuery] long exp, [FromQuery] string? sig, CancellationToken ct)
+    {
+        var esperado = Assinar(id, exp);
+        if (sig is null || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(sig), Encoding.ASCII.GetBytes(esperado))
+            || DateTimeOffset.FromUnixTimeSeconds(exp) < DateTimeOffset.UtcNow)
+            return StatusCode(StatusCodes.Status403Forbidden, "Link vencido. Volte ao app e toque em \"Ver a nota\" de novo.");
+
+        var manutencao = await manutencaoRepository.GetByIdAsync(id, ct);
+        if (manutencao?.AnexoId is not { } anexoId || await manutencaoRepository.ObterAnexoAsync(anexoId, ct) is not { } anexo)
+            return NotFound();
+
+        // "inline" = o navegador mostra (visualizador de PDF / imagem) em vez de baixar.
+        Response.Headers.ContentDisposition = $"inline; filename=\"{manutencao.Data:yyyy-MM-dd}-{anexo.Nome}\"";
+        return File(anexo.Conteudo, anexo.ContentType);
+    }
+
+    private string Assinar(Guid id, long expira)
+    {
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(jwt.Value.Key));
+        return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes($"anexo:{id:N}:{expira}")))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     [HttpPost]
@@ -172,9 +220,10 @@ public class ManutencoesController(
     }
 
     private static IEnumerable<ManutencaoItem> Itens(Guid manutencaoId, SalvarManutencaoRequest r) =>
-        (r.Itens ?? []).Select(i => new ManutencaoItem
+        (r.Itens ?? []).Select((i, ordem) => new ManutencaoItem
         {
             ManutencaoId = manutencaoId,
+            Ordem = ordem,
             Quantidade = i.Quantidade,
             Descricao = i.Descricao.Trim(),
             Valor = Math.Round(i.Valor, 2),
@@ -204,7 +253,7 @@ public class ManutencoesController(
 
     private static ManutencaoDto ToDto(Manutencao m) => new(
         m.Id, m.VeiculoId, m.Veiculo?.Placa ?? "", m.Data, m.Km, m.Tipo, m.Descricao, m.Valor, m.MaoDeObra, m.Oficina,
-        m.Itens.Select(i => new ManutencaoItemDto(i.Quantidade, i.Descricao, i.Valor)).ToList(),
+        m.Itens.OrderBy(i => i.Ordem).Select(i => new ManutencaoItemDto(i.Quantidade, i.Descricao, i.Valor)).ToList(),
         m.Proximas.Select(p => new ManutencaoProximaDto(p.Tipo, p.ProximaKm, p.ProximaData)).ToList(),
         m.AnexoId is not null);
 }
