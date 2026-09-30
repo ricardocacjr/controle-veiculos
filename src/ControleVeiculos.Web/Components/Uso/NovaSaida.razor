@@ -98,9 +98,9 @@ else
             {
                 <div class="reading-card">
                     <div class="reading-label">Km do painel</div>
-                    @if (_km is null || _corrigindoKm)
+                    @if (_corrigindoKm)
                     {
-                        @if (_km is null && !_corrigindoKm)
+                        @if (_kmNaoLido)
                         {
                             <div class="notice notice-info">Não consegui ler o número. Digite o km que aparece no painel:</div>
                         }
@@ -204,7 +204,7 @@ else
                 }
                 else
                 {
-                    <Icon Name="car" Size="24" /><span>SAIR</span>
+                    <Icon Name="car" Size="24" /><span>INICIAR PERCURSO</span>
                 }
             </button>
             break;
@@ -229,7 +229,10 @@ else
     private string? _motivoDigitado;
 
     private bool _fotoLida;
+    // Campo de km aberto: fica aberto enquanto a pessoa digita (antes a condição era "km vazio",
+    // e o campo sumia logo no 1º dígito).
     private bool _corrigindoKm;
+    private bool _kmNaoLido;
     private int? _km;
     private Posicao? _posicao;
     private bool _naBase;
@@ -329,7 +332,8 @@ else
         _enderecoGps = leitura?.EnderecoSugerido;
         _origem = _naBase ? Base.Endereco : _enderecoGps;
         _fotoLida = true;
-        _corrigindoKm = false;
+        _kmNaoLido = _km is null;
+        _corrigindoKm = _kmNaoLido;
         StateHasChanged();
 
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
@@ -368,6 +372,8 @@ else
     {
         await BuscarLocalAsync();
         _km = null;
+        _kmNaoLido = true;
+        _corrigindoKm = true;
         _fotoLida = true;
     }
 
@@ -375,6 +381,8 @@ else
     {
         _fotoLida = false;
         _km = null;
+        _kmNaoLido = true;
+        _corrigindoKm = true;
     }
 
     private async Task SairAsync()

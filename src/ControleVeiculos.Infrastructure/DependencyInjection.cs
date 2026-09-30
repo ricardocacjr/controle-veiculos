@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         services.AddScoped<IMotivoUsoRepository, MotivoUsoRepository>();
         services.AddScoped<IParametrosCustoRepository, ParametrosCustoRepository>();
+        services.AddScoped<IManutencaoRepository, ManutencaoRepository>();
         services.AddScoped<IVoiceTranscriptionService, GoogleSpeechTranscriptionService>();
         services.AddScoped<IOdometerOcrService, GoogleVisionOdometerOcrService>();
         services.AddScoped<IFuelReceiptOcrService, GoogleVisionFuelReceiptOcrService>();

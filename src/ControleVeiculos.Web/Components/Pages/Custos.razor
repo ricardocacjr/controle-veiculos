@@ -54,6 +54,22 @@ else
         <div class="custo-linha mt-3"><span>Extra por km (pneus + manutenção)</span><b>@ExtraKm.ToString("C4")</b></div>
     </div>
 
+    @if (_p.GastoManutencao12Meses is > 0)
+    {
+        <div class="card-app mt-3">
+            <div class="custo-linha"><span>Gasto real com manutenção (12 meses)</span><b>@_p.GastoManutencao12Meses.Value.ToString("C")</b></div>
+            @if (_p.ManutencaoPorKmReal is { } real)
+            {
+                <div class="custo-linha"><span>Manutenção real por km (sem pneus)</span><b>@real.ToString("C4")</b></div>
+                @if (_podeEditar)
+                {
+                    <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _manutencao = real">Usar o valor real na manutenção por km</button>
+                }
+            }
+            <div class="field-hint mt-2">Vem da tela Manutenção. Com poucos meses de dados a média oscila; o valor estimado continua valendo até você trocar.</div>
+        </div>
+    }
+
     <div class="section-title">Custo real nos últimos 90 dias</div>
     <div class="card-app">
         @if (_p.CombustivelPorKmRecente is { } comb)

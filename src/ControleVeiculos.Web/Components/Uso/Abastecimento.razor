@@ -62,9 +62,9 @@
         {
             <div class="reading-card">
                 <div class="reading-label">Km do painel</div>
-                @if (_km is null || _corrigindoKm)
+                @if (_corrigindoKm)
                 {
-                    @if (_km is null && !_corrigindoKm)
+                    @if (_kmNaoLido)
                     {
                         <div class="notice notice-info">Não consegui ler o número. Digite o km:</div>
                     }
@@ -162,7 +162,10 @@
     private bool _doBolso;
 
     private bool _painelLido;
+    // Campo de km aberto: fica aberto enquanto a pessoa digita (antes a condição era "km vazio",
+    // e o campo sumia logo no 1º dígito).
     private bool _corrigindoKm;
+    private bool _kmNaoLido;
     private int? _km;
     private Posicao? _posicao;
 
@@ -212,7 +215,8 @@
         _km = resultado.Ler<PainelReadingDto>()?.OdometroLido;
         _posicao = resultado.Posicao;
         _painelLido = true;
-        _corrigindoKm = false;
+        _kmNaoLido = _km is null;
+        _corrigindoKm = _kmNaoLido;
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
 
@@ -220,6 +224,8 @@
     {
         _posicao = await Localizacao.ObterAsync();
         _km = null;
+        _kmNaoLido = true;
+        _corrigindoKm = true;
         _painelLido = true;
     }
 

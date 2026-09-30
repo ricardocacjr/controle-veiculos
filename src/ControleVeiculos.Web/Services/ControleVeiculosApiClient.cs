@@ -251,6 +251,37 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return (await response.Content.ReadFromJsonAsync<RenomearMotivoResponse>())?.Saidas ?? 0;
     }
 
+    public async Task<IReadOnlyList<ControleVeiculos.Shared.Manutencoes.ManutencaoDto>> GetManutencoesAsync(Guid? veiculoId = null)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, veiculoId is { } v ? $"api/manutencoes?veiculoId={v}" : "api/manutencoes");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<ControleVeiculos.Shared.Manutencoes.ManutencaoDto>>() ?? [];
+    }
+
+    public async Task<IReadOnlyList<ControleVeiculos.Shared.Manutencoes.ManutencaoResumoDto>> GetManutencaoResumoAsync()
+    {
+        using var request = AuthorizedRequest(HttpMethod.Get, "api/manutencoes/resumo");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+        return await response.Content.ReadFromJsonAsync<List<ControleVeiculos.Shared.Manutencoes.ManutencaoResumoDto>>() ?? [];
+    }
+
+    public async Task SalvarManutencaoAsync(Guid? id, ControleVeiculos.Shared.Manutencoes.SalvarManutencaoRequest dados)
+    {
+        using var request = AuthorizedRequest(id is null ? HttpMethod.Post : HttpMethod.Put, id is { } i ? $"api/manutencoes/{i}" : "api/manutencoes");
+        request.Content = JsonContent.Create(dados);
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
+    public async Task ExcluirManutencaoAsync(Guid id)
+    {
+        using var request = AuthorizedRequest(HttpMethod.Delete, $"api/manutencoes/{id}");
+        var response = await http.SendAsync(request);
+        await EnsureSuccessWithApiErrorAsync(response);
+    }
+
     public async Task ExcluirUsoAsync(Guid id)
     {
         using var request = AuthorizedRequest(HttpMethod.Delete, $"api/usagerecords/{id}");

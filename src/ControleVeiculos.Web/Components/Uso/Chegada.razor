@@ -23,13 +23,13 @@
     {
         <div class="reading-card">
             <div class="reading-label">Km do painel</div>
-            @if (_km is null || _corrigindoKm)
+            @if (_corrigindoKm)
             {
                 @if (_semFoto)
                 {
                     <div class="notice notice-info">Digite o km que aparece no painel. Sem a foto, o administrador vai conferir esse número.</div>
                 }
-                else if (_km is null && !_corrigindoKm)
+                else if (_kmNaoLido)
                 {
                     <div class="notice notice-info">Não consegui ler o número. Digite o km:</div>
                 }
@@ -71,7 +71,7 @@
 }
 else
 {
-    <h1 class="step-title">Finalizar o uso?</h1>
+    <h1 class="step-title">Finalizar o percurso?</h1>
     <div class="reading-card">
         <div class="summary-row">
             <Icon Name="car" Class="summary-icon" />
@@ -102,7 +102,7 @@ else
         }
         else
         {
-            <Icon Name="flag" Size="24" /><span>Finalizar uso</span>
+            <Icon Name="flag" Size="24" /><span>FINALIZAR PERCURSO</span>
         }
     </button>
 }
@@ -117,7 +117,10 @@ else
     private bool _salvando;
     private bool _fotoLida;
     private bool _semFoto;
+    // Campo de km aberto: fica aberto enquanto a pessoa digita (antes a condição era "km vazio",
+    // e o campo sumia logo no 1º dígito).
     private bool _corrigindoKm;
+    private bool _kmNaoLido;
     private int? _km;
     private Posicao? _posicao;
     private string? _erro;
@@ -160,7 +163,8 @@ else
 
         _km = resultado.Ler<VehiclePhotoDto>()?.OdometroLido;
         _fotoLida = true;
-        _corrigindoKm = false;
+        _kmNaoLido = _km is null;
+        _corrigindoKm = _kmNaoLido;
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
         // Sem GPS junto com a foto (iPhone logo depois da câmera): tenta de novo agora.
         await DefinirLocalAsync(resultado.Posicao.Ok ? resultado.Posicao : await Localizacao.ObterAsync());
@@ -171,7 +175,8 @@ else
         _erro = null;
         _semFoto = true;
         _km = null;
-        _corrigindoKm = false;
+        _kmNaoLido = true;
+        _corrigindoKm = true;
         _fotoLida = true;
         await DefinirLocalAsync(await Localizacao.ObterAsync());
     }

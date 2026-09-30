@@ -101,4 +101,6 @@ public record ParametrosCustoDto(
     decimal ExtraPorKm = 0,
     decimal? CombustivelPorKmRecente = null,
     decimal? CustoTotalPorKmRecente = null,
-    decimal? KmPorLitroRecente = null);
+    decimal? KmPorLitroRecente = null,
+    decimal? ManutencaoPorKmReal = null,
+    decimal? GastoManutencao12Meses = null);

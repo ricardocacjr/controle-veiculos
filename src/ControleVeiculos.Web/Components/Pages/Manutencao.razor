@@ -1,0 +1,362 @@
+@page "/manutencao"
+@using ControleVeiculos.Shared.Manutencoes
+@inject ControleVeiculosApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Manutenção</PageTitle>
+
+<h1 class="page-title">Manutenção</h1>
+<p class="page-subtitle">Revisões, trocas de óleo, pneus e consertos do veículo — com o que já está vencido ou chegando.</p>
+
+<Mensagens Erro="@_erro" Sucesso="@_ok" />
+
+@if (_resumos is null)
+{
+    <div class="loading-block"><span class="spinner"></span> Carregando...</div>
+}
+else if (_resumos.Count == 0)
+{
+    <div class="empty-state"><div>Nenhum veículo cadastrado.</div></div>
+}
+else
+{
+    @if (_resumos.Count > 1)
+    {
+        <div class="seg">
+            @foreach (var r in _resumos)
+            {
+                <button type="button" class="seg-btn @(r.VeiculoId == _veiculoId ? "ativo" : "")" @onclick="() => TrocarVeiculoAsync(r.VeiculoId)">@r.Veiculo</button>
+            }
+        </div>
+    }
+
+    @if (Resumo is { } res)
+    {
+        <div class="kpi-grid">
+            <div class="kpi">
+                <div class="kpi-icone tone-accent"><Icon Name="gauge" Size="20" /></div>
+                <div class="kpi-valor">@res.OdometroAtual.ToString("N0")</div>
+                <div class="kpi-rotulo">km atual</div>
+                <div class="kpi-extra">@res.Veiculo</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-icone tone-violet"><Icon Name="wrench" Size="20" /></div>
+                <div class="kpi-valor">@res.Gasto12Meses.ToString("C0")</div>
+                <div class="kpi-rotulo">em manutenção (12 meses)</div>
+                @if (res.CustoPorKmSemPneus is { } cpk)
+                {
+                    <div class="kpi-extra">@cpk.ToString("C4")/km sem pneus · @res.KmRodados12Meses.ToString("N0") km</div>
+                }
+            </div>
+        </div>
+
+        <div class="section-title">Próximas manutenções</div>
+        @if (res.Proximas.Count == 0)
+        {
+            <div class="card-app muted">Nenhuma próxima marcada. Ao registrar uma manutenção, diga quando é a próxima (km ou data) — o app avisa quando estiver chegando.</div>
+        }
+        else
+        {
+            <div class="list-card">
+                @foreach (var p in res.Proximas)
+                {
+                    var (chip, texto) = Situacao(p.Situacao);
+                    <div class="list-item">
+                        <span class="list-item-main">
+                            <span class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="chip @chip">@texto</span>
+                                <span class="list-item-title">@p.Tipo</span>
+                            </span>
+                            <span class="list-item-sub d-block" style="white-space:normal">@Quando(p)</span>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    @if (_podeEditar && _form is null)
+    {
+        <button type="button" class="btn btn-primary btn-app mt-3" @onclick="NovaManutencao"><Icon Name="plus" Size="20" /><span>Registrar manutenção</span></button>
+    }
+
+    @if (_form is { } f)
+    {
+        <div class="section-title">@(_editandoId is null ? "Registrar manutenção" : "Editar manutenção")</div>
+        <div class="card-app edicao-card">
+            <div class="field">
+                <label>Tipo</label>
+                <div class="tipos-manutencao">
+                    @foreach (var t in Tipos)
+                    {
+                        <button type="button" class="periodo-chip @((t == "OUTRO" ? f.Outro : f.Tipo == t && !f.Outro) ? "ativo" : "")" @onclick="() => EscolherTipo(t)">@t</button>
+                    }
+                </div>
+                @if (f.Outro)
+                {
+                    <input class="form-control mt-2" @bind="f.Tipo" @bind:event="oninput" placeholder="Qual? (ex.: TROCA DE CORREIA)" />
+                }
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Data</label>
+                    <input class="form-control" type="date" @bind="f.Data" />
+                </div>
+                <div class="field">
+                    <label>Km do carro</label>
+                    <input class="form-control" type="number" inputmode="numeric" @bind="f.Km" />
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Valor (R$)</label>
+                    <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="f.Valor" />
+                </div>
+                <div class="field">
+                    <label>Oficina</label>
+                    <input class="form-control" list="oficinas" @bind="f.Oficina" @bind:event="oninput" />
+                    <datalist id="oficinas">
+                        @foreach (var o in _historico.Select(h => h.Oficina).Where(o => !string.IsNullOrWhiteSpace(o)).Distinct())
+                        {
+                            <option value="@o"></option>
+                        }
+                    </datalist>
+                </div>
+            </div>
+            <div class="field">
+                <label>O que foi feito</label>
+                <textarea class="form-control" rows="2" @bind="f.Descricao" placeholder="Ex.: óleo 5W30, filtro de óleo e de ar"></textarea>
+            </div>
+            <div class="reading-label mt-2">Próxima (opcional)</div>
+            <div class="field-row">
+                <div class="field">
+                    <label>No km</label>
+                    <input class="form-control" type="number" inputmode="numeric" @bind="f.ProximaKm" />
+                </div>
+                <div class="field">
+                    <label>Ou na data</label>
+                    <input class="form-control" type="date" @bind="f.ProximaData" />
+                </div>
+            </div>
+            @if (Sugestao(f.Tipo) is { } sug)
+            {
+                <div class="field-hint mb-3">Sugestão para @f.Tipo: a cada @sug.Km.ToString("N0") km@(sug.Meses > 0 ? $" ou {sug.Meses} meses" : "") — já preenchido, pode mudar.</div>
+            }
+            <Mensagens Erro="@_erroForm" />
+            <div class="zerar-acoes">
+                <button type="button" class="btn btn-soft btn-app" disabled="@_salvando" @onclick="() => _form = null">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-app" disabled="@_salvando" @onclick="SalvarAsync">
+                    @if (_salvando)
+                    {
+                        <span class="spinner"></span><span>Salvando...</span>
+                    }
+                    else
+                    {
+                        <Icon Name="check" Size="20" /><span>Salvar</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="section-title">Histórico (@_historico.Count)@(_historico.Count > 0 ? $" · {_historico.Sum(h => h.Valor):C}" : "")</div>
+    @if (_historico.Count == 0)
+    {
+        <div class="card-app muted">Nenhuma manutenção registrada ainda.</div>
+    }
+    else
+    {
+        <div class="list-card">
+            @foreach (var h in _historico)
+            {
+                <div class="list-item">
+                    <span class="avatar tone-violet"><Icon Name="wrench" Size="20" /></span>
+                    <span class="list-item-main">
+                        <span class="list-item-title d-block">@h.Tipo · @h.Valor.ToString("C")</span>
+                        <span class="list-item-sub d-block" style="white-space:normal">
+                            @h.Data.ToString("dd/MM/yyyy") · @h.Km.ToString("N0") km@(h.Oficina is null ? "" : $" · {h.Oficina}")
+                            @if (!string.IsNullOrWhiteSpace(h.Descricao))
+                            {
+                                <br />@h.Descricao
+                            }
+                        </span>
+                    </span>
+                    @if (_podeEditar)
+                    {
+                        <button class="btn-icon" title="Editar" @onclick="() => Editar(h)"><Icon Name="pencil" Size="18" /></button>
+                        <button class="btn-icon" title="Apagar" @onclick="() => ExcluirAsync(h)"><Icon Name="trash" Size="18" /></button>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private static readonly string[] Tipos =
+        ["REVISÃO", "TROCA DE ÓLEO", "PNEUS", "FREIOS", "ALINHAMENTO E BALANCEAMENTO", "SUSPENSÃO", "ELÉTRICA", "FUNILARIA E PINTURA", "OUTRO"];
+
+    // Intervalos usuais (referência de mercado) — só pré-preenchem a "próxima"; o admin ajusta.
+    private static readonly Dictionary<string, (int Km, int Meses)> Intervalos = new()
+    {
+        ["REVISÃO"] = (10000, 12),
+        ["TROCA DE ÓLEO"] = (10000, 12),
+        ["PNEUS"] = (40000, 0),
+        ["FREIOS"] = (20000, 0),
+        ["ALINHAMENTO E BALANCEAMENTO"] = (10000, 0),
+    };
+
+    private List<ManutencaoResumoDto>? _resumos;
+    private List<ManutencaoDto> _historico = [];
+    private Guid _veiculoId;
+    private Form? _form;
+    private Guid? _editandoId;
+    private bool _salvando;
+    private string? _erro;
+    private string? _erroForm;
+    private string? _ok;
+
+    private bool _podeEditar => AuthState.IsInRole("Admin");
+    private ManutencaoResumoDto? Resumo => _resumos?.FirstOrDefault(r => r.VeiculoId == _veiculoId);
+
+    private class Form
+    {
+        public string Tipo { get; set; } = "";
+        public bool Outro { get; set; }
+        public DateOnly Data { get; set; }
+        public int Km { get; set; }
+        public decimal Valor { get; set; }
+        public string? Oficina { get; set; }
+        public string? Descricao { get; set; }
+        public int? ProximaKm { get; set; }
+        public DateOnly? ProximaData { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated || !AuthState.EhGestao)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        try
+        {
+            _resumos = (await Api.GetManutencaoResumoAsync()).ToList();
+            if (_veiculoId == Guid.Empty && _resumos.Count > 0)
+                _veiculoId = _resumos[0].VeiculoId;
+            _historico = _veiculoId == Guid.Empty ? [] : (await Api.GetManutencoesAsync(_veiculoId)).ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _erro = "Não foi possível carregar as manutenções.";
+            _resumos ??= [];
+        }
+    }
+
+    private async Task TrocarVeiculoAsync(Guid id)
+    {
+        _veiculoId = id;
+        _form = null;
+        await CarregarAsync();
+    }
+
+    private static DateOnly Hoje => DateOnly.FromDateTime(Rotulos.Local(DateTimeOffset.UtcNow).DateTime);
+
+    private static (int Km, int Meses)? Sugestao(string tipo) => Intervalos.TryGetValue(tipo, out var s) ? s : null;
+
+    private void NovaManutencao()
+    {
+        _erroForm = _ok = null;
+        _editandoId = null;
+        _form = new Form { Data = Hoje, Km = Resumo?.OdometroAtual ?? 0 };
+    }
+
+    private void Editar(ManutencaoDto h)
+    {
+        _erroForm = _ok = null;
+        _editandoId = h.Id;
+        _form = new Form
+        {
+            Tipo = h.Tipo, Outro = !Tipos.Contains(h.Tipo), Data = h.Data, Km = h.Km, Valor = h.Valor, Oficina = h.Oficina,
+            Descricao = h.Descricao, ProximaKm = h.ProximaKm, ProximaData = h.ProximaData,
+        };
+    }
+
+    private void EscolherTipo(string tipo)
+    {
+        var f = _form!;
+        f.Outro = tipo == "OUTRO";
+        f.Tipo = f.Outro ? "" : tipo;
+        // Só sugere a próxima se ela ainda estiver vazia (não apaga o que o admin digitou).
+        if (Sugestao(f.Tipo) is { } s)
+        {
+            f.ProximaKm ??= f.Km > 0 ? f.Km + s.Km : null;
+            if (s.Meses > 0)
+                f.ProximaData ??= f.Data.AddMonths(s.Meses);
+        }
+    }
+
+    private async Task SalvarAsync()
+    {
+        var f = _form!;
+        _salvando = true;
+        _erroForm = null;
+        try
+        {
+            await Api.SalvarManutencaoAsync(_editandoId, new SalvarManutencaoRequest(
+                _veiculoId, f.Data, f.Km, f.Tipo, f.Descricao, f.Valor, f.Oficina, f.ProximaKm, f.ProximaData));
+            _ok = _editandoId is null ? "✅ Manutenção registrada." : "✅ Manutenção atualizada.";
+            _form = null;
+            await CarregarAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erroForm = ex.Message;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private async Task ExcluirAsync(ManutencaoDto h)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Apagar a manutenção {h.Tipo} de {h.Data:dd/MM/yyyy} ({h.Valor:C})?"))
+            return;
+        _erro = _ok = null;
+        try
+        {
+            await Api.ExcluirManutencaoAsync(h.Id);
+            _ok = "Manutenção apagada.";
+            await CarregarAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _erro = ex.Message;
+        }
+    }
+
+    private static (string Chip, string Texto) Situacao(SituacaoManutencao s) => s switch
+    {
+        SituacaoManutencao.Vencida => ("chip-danger", "Vencida"),
+        SituacaoManutencao.EmBreve => ("chip-warning", "Em breve"),
+        _ => ("chip-success", "Em dia"),
+    };
+
+    private static string Quando(ProximaManutencaoDto p)
+    {
+        var partes = new List<string>();
+        if (p.ProximaKm is { } km)
+            partes.Add(p.FaltamKm is { } fk && fk <= 0 ? $"era aos {km:N0} km (passou {-fk:N0} km)" : $"aos {km:N0} km (faltam {p.FaltamKm:N0} km)");
+        if (p.ProximaData is { } d)
+            partes.Add(p.FaltamDias is { } fd && fd <= 0 ? $"era em {d:dd/MM/yyyy}" : $"em {d:dd/MM/yyyy} (faltam {p.FaltamDias} dias)");
+        return string.Join(" ou ", partes);
+    }
+}

@@ -294,3 +294,13 @@ escondidos:
 2. Testar o app mobile em um dispositivo/emulador Android real (câmera, microfone, upload).
 3. Fechar a simplificação de cadastro sem aprovação (item 1 das limitações acima).
 4. Apontar o app mobile (`AppConfig`) pra URL de produção da Api em vez de `localhost`/`10.0.2.2`.
+
+### Manutenção (administração)
+
+Menu **Manutenção** (`/manutencao`; Api `api/manutencoes`, cadastro só Admin): registro de
+revisões, óleo, pneus, freios etc. (data, km, tipo em CAIXA ALTA, valor, oficina, descrição) com a
+**próxima** por km e/ou data (sugestão pelo tipo: óleo/revisão 10.000 km ou 12 meses, pneus
+40.000 km...). A mais recente de cada tipo vale: **Vencida** (passou) / **Em breve** (faltam
+≤ 1.000 km ou ≤ 30 dias) / **Em dia** — vencidas e próximas também viram alerta nos Relatórios.
+Gasto real dos últimos 12 meses (sem pneus) ÷ km rodados aparece em Custos e tarifa como
+referência para a manutenção por km.

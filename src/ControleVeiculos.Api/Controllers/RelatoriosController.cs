@@ -16,6 +16,8 @@ namespace ControleVeiculos.Api.Controllers;
 public class RelatoriosController(
     IUsageRecordRepository usageRepository,
     IParametrosCustoRepository parametrosRepository,
+    IManutencaoRepository manutencaoRepository,
+    IVehicleRepository vehicleRepository,
     IOptions<BaseOperacional> baseOperacional) : ControllerBase
 {
     private const int DiasMaximos = 366 * 2;
@@ -55,7 +57,19 @@ public class RelatoriosController(
         var carregadas = await usageRepository.ListParaRelatorioAsync(RelatorioCalculadora.CarregarDesde(de, hoje), ct);
         var ciclos = RelatorioCalculadora.Ciclos(carregadas.Where(u => u.Status != Domain.Enums.UsageRecordStatus.Cancelado).ToList());
         var (combustivel, _, kmPorLitro) = RelatorioCalculadora.CombustivelPorKm(ciclos, de, hoje);
-        return Ok(ParaDto(parametros, combustivel, kmPorLitro));
+        // Manutenção real (sem pneus, que têm custo próprio) nos últimos 12 meses ÷ km rodados no período.
+        var usos12 = await usageRepository.ListParaRelatorioAsync(RelatorioCalculadora.InicioDoDia(hoje.AddYears(-1)), ct);
+        var manutencoes = await manutencaoRepository.ListarAsync(null, ct);
+        var resumos = (await vehicleRepository.ListAsync(ct)).Select(v => ManutencaoCalculo.Resumo(v, manutencoes, usos12, hoje)).ToList();
+        var km12 = resumos.Sum(r => r.KmRodados12Meses);
+        var manutencaoSemPneus = manutencoes
+            .Where(m => m.Data > hoje.AddYears(-1) && m.Tipo != ManutencaoCalculo.TipoPneus)
+            .Sum(m => m.Valor);
+        return Ok(ParaDto(parametros, combustivel, kmPorLitro) with
+        {
+            ManutencaoPorKmReal = km12 > 0 && manutencaoSemPneus > 0 ? Math.Round(manutencaoSemPneus / km12, 4) : null,
+            GastoManutencao12Meses = resumos.Sum(r => r.Gasto12Meses),
+        });
     }
 
     [HttpPut("parametros")]
@@ -73,6 +87,22 @@ public class RelatoriosController(
             ManutencaoPorKm = Math.Round(request.ManutencaoPorKm, 4),
         }, ct);
         return await GetParametros(ct);
+    }
+
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+
+    public static string DescreverProxima(Shared.Manutencoes.ProximaManutencaoDto p)
+    {
+        var partes = new List<string>();
+        if (p.ProximaKm is { } km)
+            partes.Add(p.FaltamKm is { } fk && fk <= 0
+                ? string.Create(PtBr, $"era aos {km:N0} km (passou {-fk:N0} km)")
+                : string.Create(PtBr, $"aos {km:N0} km (faltam {p.FaltamKm:N0} km)"));
+        if (p.ProximaData is { } data)
+            partes.Add(p.FaltamDias is { } fd && fd <= 0
+                ? $"era em {data:dd/MM/yyyy}"
+                : $"em {data:dd/MM/yyyy} (faltam {p.FaltamDias} dias)");
+        return $"{p.Tipo} do {p.Veiculo}: {string.Join(" ou ", partes)}.";
     }
 
     private static ParametrosCustoDto ParaDto(ParametrosCusto p, decimal? combustivelKm, decimal? kmPorLitro) => new(
@@ -97,6 +127,17 @@ public class RelatoriosController(
         var carregadas = await usageRepository.ListParaRelatorioAsync(RelatorioCalculadora.CarregarDesde(de, ate), ct);
         var diaZero = await usageRepository.AbastecimentosDiaZeroAsync(ct);
         var relatorio = RelatorioCalculadora.Calcular(carregadas, de, ate, baseOperacional.Value, parametros, DateTimeOffset.UtcNow, diaZero);
+
+        // Manutenção vencida / em breve entra nos alertas (vale o estado de hoje, não do período).
+        var proximas = ManutencaoCalculo.Proximas(await manutencaoRepository.ListarAsync(null, ct),
+            await vehicleRepository.ListAsync(ct), RelatorioCalculadora.Hoje(DateTimeOffset.UtcNow));
+        var alertasManutencao = proximas
+            .Where(p => p.Situacao != Shared.Manutencoes.SituacaoManutencao.EmDia)
+            .Select(p => new AlertaDto(
+                p.Situacao == Shared.Manutencoes.SituacaoManutencao.Vencida ? "Manutenção vencida" : "Manutenção em breve",
+                p.Situacao == Shared.Manutencoes.SituacaoManutencao.Vencida ? GravidadeAlerta.Alta : GravidadeAlerta.Media,
+                DescreverProxima(p), null, null));
+        relatorio = relatorio with { Alertas = [.. alertasManutencao, .. relatorio.Alertas] };
         var doPeriodo = carregadas.Where(u => RelatorioCalculadora.NoPeriodo(u, de, ate)).ToList();
         return (relatorio, doPeriodo, parametros, diaZero);
     }

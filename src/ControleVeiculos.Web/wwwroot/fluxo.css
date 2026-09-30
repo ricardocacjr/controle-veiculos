@@ -836,3 +836,8 @@
 .motivo-edicao { margin-top: 10px; }
 .motivo-acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .custo-bloco { margin-top: 12px; padding-top: 8px; border-top: 2px solid var(--border); }
+
+/* ---------- Manutenção ---------- */
+
+.tipos-manutencao { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tipos-manutencao .periodo-chip { font-size: 13px; padding: 7px 11px; }

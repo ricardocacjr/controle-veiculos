@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<MotivoUso> MotivosUso => Set<MotivoUso>();
     public DbSet<ParametrosCusto> ParametrosCusto => Set<ParametrosCusto>();
+    public DbSet<Manutencao> Manutencoes => Set<Manutencao>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
