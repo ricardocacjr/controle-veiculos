@@ -63,8 +63,8 @@ public class RelatoriosController(
         var resumos = (await vehicleRepository.ListAsync(ct)).Select(v => ManutencaoCalculo.Resumo(v, manutencoes, usos12, hoje)).ToList();
         var km12 = resumos.Sum(r => r.KmRodados12Meses);
         var manutencaoSemPneus = manutencoes
-            .Where(m => m.Data > hoje.AddYears(-1) && m.Tipo != ManutencaoCalculo.TipoPneus)
-            .Sum(m => m.Valor);
+            .Where(m => m.Data > hoje.AddYears(-1))
+            .Sum(ManutencaoCalculo.GastoSemPneus);
         return Ok(ParaDto(parametros, combustivel, kmPorLitro) with
         {
             ManutencaoPorKmReal = km12 > 0 && manutencaoSemPneus > 0 ? Math.Round(manutencaoSemPneus / km12, 4) : null,

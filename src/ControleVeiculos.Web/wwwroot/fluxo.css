@@ -841,3 +841,12 @@
 
 .tipos-manutencao { display: flex; flex-wrap: wrap; gap: 6px; }
     .tipos-manutencao .periodo-chip { font-size: 13px; padding: 7px 11px; }
+
+.itens-nota { display: grid; gap: 6px; }
+.item-nota { display: grid; grid-template-columns: 52px 1fr 92px 32px; gap: 6px; align-items: center; }
+    .item-nota.cabecalho { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .item-nota .form-control { padding: 8px 8px; font-size: 15px; }
+    .item-nota .btn-icon { width: 32px; height: 32px; }
+.total-nota { font-size: 22px; font-weight: 800; padding-top: 4px; }
+.proxima-linha { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .proxima-linha .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }

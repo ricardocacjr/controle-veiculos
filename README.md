@@ -297,10 +297,15 @@ escondidos:
 
 ### Manutenção (administração)
 
-Menu **Manutenção** (`/manutencao`; Api `api/manutencoes`, cadastro só Admin): registro de
-revisões, óleo, pneus, freios etc. (data, km, tipo em CAIXA ALTA, valor, oficina, descrição) com a
-**próxima** por km e/ou data (sugestão pelo tipo: óleo/revisão 10.000 km ou 12 meses, pneus
-40.000 km...). A mais recente de cada tipo vale: **Vencida** (passou) / **Em breve** (faltam
-≤ 1.000 km ou ≤ 30 dias) / **Em dia** — vencidas e próximas também viram alerta nos Relatórios.
-Gasto real dos últimos 12 meses (sem pneus) ÷ km rodados aparece em Custos e tarifa como
-referência para a manutenção por km.
+Menu **Manutenção** (`/manutencao`; Api `api/manutencoes`, cadastro só Admin), no formato da nota
+da oficina: **itens** (qtd, descrição, valor), **mão de obra** e **total** (soma automática).
+- **Enviar a nota** (PDF ou foto) → `POST api/manutencoes/ler-nota`: PDF com texto é lido pelo
+  PdfPig, foto pelo Google Vision (DocumentText); `NotaOficinaParser` tira data, km, placa,
+  oficina, itens, mão de obra, total e observação. A nota fica anexada no banco
+  (`ManutencaoAnexos`) — o disco do Render não é permanente — e baixa em `{id}/anexo`.
+- **Próximas** sugeridas pelos itens (`CategoriasManutencao`, em Shared): óleo/filtros/revisão
+  10.000 km ou 12 meses, pneus 40.000 km, freios 20.000, correia 50.000/48 meses, palhetas e
+  higienização 12 meses... Por categoria vale a manutenção mais recente: **Vencida** / **Em breve**
+  (≤ 1.000 km ou ≤ 30 dias) / **Em dia** — vencidas e próximas também viram alerta nos Relatórios.
+- Gasto real dos últimos 12 meses (sem os itens de pneus) ÷ km rodados aparece em Custos e tarifa
+  como referência para a manutenção por km.

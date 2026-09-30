@@ -275,6 +275,9 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         await EnsureSuccessWithApiErrorAsync(response);
     }
 
+    /// <summary>Endereço da nota anexada (baixada pelo navegador com cvBaixar).</summary>
+    public string AnexoManutencaoUrl(Guid id) => UrlApi($"api/manutencoes/{id}/anexo");
+
     public async Task ExcluirManutencaoAsync(Guid id)
     {
         using var request = AuthorizedRequest(HttpMethod.Delete, $"api/manutencoes/{id}");

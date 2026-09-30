@@ -8,7 +8,7 @@
 <PageTitle>Manutenção</PageTitle>
 
 <h1 class="page-title">Manutenção</h1>
-<p class="page-subtitle">Revisões, trocas de óleo, pneus e consertos do veículo — com o que já está vencido ou chegando.</p>
+<p class="page-subtitle">Notas da oficina, gastos e o que já está vencido ou chegando.</p>
 
 <Mensagens Erro="@_erro" Sucesso="@_ok" />
 
@@ -32,7 +32,7 @@ else
         </div>
     }
 
-    @if (Resumo is { } res)
+    @if (Resumo is { } res && _form is null)
     {
         <div class="kpi-grid">
             <div class="kpi">
@@ -55,7 +55,7 @@ else
         <div class="section-title">Próximas manutenções</div>
         @if (res.Proximas.Count == 0)
         {
-            <div class="card-app muted">Nenhuma próxima marcada. Ao registrar uma manutenção, diga quando é a próxima (km ou data) — o app avisa quando estiver chegando.</div>
+            <div class="card-app muted">Nenhuma próxima marcada ainda. Ao registrar uma nota, o app sugere as próximas pelos itens (óleo, filtros, pneus...).</div>
         }
         else
         {
@@ -85,34 +85,33 @@ else
     @if (_form is { } f)
     {
         <div class="section-title">@(_editandoId is null ? "Registrar manutenção" : "Editar manutenção")</div>
-        <div class="card-app edicao-card">
-            <div class="field">
-                <label>Tipo</label>
-                <div class="tipos-manutencao">
-                    @foreach (var t in Tipos)
-                    {
-                        <button type="button" class="periodo-chip @((t == "OUTRO" ? f.Outro : f.Tipo == t && !f.Outro) ? "ativo" : "")" @onclick="() => EscolherTipo(t)">@t</button>
-                    }
-                </div>
-                @if (f.Outro)
-                {
-                    <input class="form-control mt-2" @bind="f.Tipo" @bind:event="oninput" placeholder="Qual? (ex.: TROCA DE CORREIA)" />
-                }
-            </div>
-            <div class="field-row">
-                <div class="field">
-                    <label>Data</label>
-                    <input class="form-control" type="date" @bind="f.Data" />
-                </div>
-                <div class="field">
-                    <label>Km do carro</label>
-                    <input class="form-control" type="number" inputmode="numeric" @bind="f.Km" />
-                </div>
-            </div>
-            <div class="field-row">
-                <div class="field">
-                    <label>Valor (R$)</label>
-                    <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="f.Valor" />
+
+        @if (_editandoId is null && !f.Preenchendo)
+        {
+            <CameraGrande Titulo="Enviar a nota da oficina" Subtitulo="PDF ou foto da nota — o app preenche os itens, a mão de obra e o total."
+                          Icone="clipboard" Galeria="true" Aceitar="image/*,application/pdf" LadoMaximo="2200"
+                          TextoOcupado="Lendo a nota..." Url="api/manutencoes/ler-nota"
+                          OnInicio="() => _erroForm = null" OnResultado="NotaLidaAsync" />
+            <Mensagens Erro="@_erroForm" />
+            <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="() => f.Preenchendo = true">Sem a nota? Preencher à mão</button>
+            <button type="button" class="btn btn-soft btn-app mt-3" @onclick="() => _form = null">Cancelar</button>
+        }
+        else
+        {
+            @if (_aviso is not null)
+            {
+                <div class="notice @(_avisoOk ? "notice-success" : "notice-info")">@_aviso</div>
+            }
+            <div class="card-app edicao-card">
+                <div class="field-row">
+                    <div class="field">
+                        <label>Data</label>
+                        <input class="form-control" type="date" @bind="f.Data" @bind:after="AtualizarSugestoes" />
+                    </div>
+                    <div class="field">
+                        <label>Km do carro</label>
+                        <input class="form-control" type="number" inputmode="numeric" @bind="f.Km" @bind:after="AtualizarSugestoes" />
+                    </div>
                 </div>
                 <div class="field">
                     <label>Oficina</label>
@@ -124,90 +123,129 @@ else
                         }
                     </datalist>
                 </div>
-            </div>
-            <div class="field">
-                <label>O que foi feito</label>
-                <textarea class="form-control" rows="2" @bind="f.Descricao" placeholder="Ex.: óleo 5W30, filtro de óleo e de ar"></textarea>
-            </div>
-            <div class="reading-label mt-2">Próxima (opcional)</div>
-            <div class="field-row">
-                <div class="field">
-                    <label>No km</label>
-                    <input class="form-control" type="number" inputmode="numeric" @bind="f.ProximaKm" />
-                </div>
-                <div class="field">
-                    <label>Ou na data</label>
-                    <input class="form-control" type="date" @bind="f.ProximaData" />
-                </div>
-            </div>
-            @if (Sugestao(f.Tipo) is { } sug)
-            {
-                <div class="field-hint mb-3">Sugestão para @f.Tipo: a cada @sug.Km.ToString("N0") km@(sug.Meses > 0 ? $" ou {sug.Meses} meses" : "") — já preenchido, pode mudar.</div>
-            }
-            <Mensagens Erro="@_erroForm" />
-            <div class="zerar-acoes">
-                <button type="button" class="btn btn-soft btn-app" disabled="@_salvando" @onclick="() => _form = null">Cancelar</button>
-                <button type="button" class="btn btn-primary btn-app" disabled="@_salvando" @onclick="SalvarAsync">
-                    @if (_salvando)
+
+                <div class="reading-label mt-2">Itens</div>
+                <div class="itens-nota">
+                    <div class="item-nota cabecalho"><span>Qtd</span><span>Descrição</span><span>Valor (R$)</span><span></span></div>
+                    @foreach (var item in f.Itens)
                     {
-                        <span class="spinner"></span><span>Salvando...</span>
+                        <div class="item-nota">
+                            <input class="form-control" type="number" inputmode="decimal" step="1" @bind="item.Quantidade" />
+                            <input class="form-control" @bind="item.Descricao" @bind:after="AtualizarSugestoes" placeholder="Ex.: Filtro de óleo" />
+                            <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="item.Valor" />
+                            <button type="button" class="btn-icon" title="Tirar item" @onclick="() => { f.Itens.Remove(item); AtualizarSugestoes(); }"><Icon Name="x" Size="16" /></button>
+                        </div>
+                    }
+                </div>
+                <button type="button" class="link-troca" @onclick="() => f.Itens.Add(new ItemLinha())">+ Adicionar item</button>
+
+                <div class="field-row mt-3">
+                    <div class="field">
+                        <label>Mão de obra (R$)</label>
+                        <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="f.MaoDeObra" />
+                    </div>
+                    <div class="field">
+                        <label>Total</label>
+                        <div class="total-nota">@Total(f).ToString("C")</div>
+                    </div>
+                </div>
+                @if (f.TotalNota is { } tn)
+                {
+                    @if (Math.Abs(tn - Total(f)) < 0.01m)
+                    {
+                        <div class="field-hint mb-3">✅ Bate com o total da nota (@tn.ToString("C")).</div>
                     }
                     else
                     {
-                        <Icon Name="check" Size="20" /><span>Salvar</span>
+                        <div class="notice notice-error mb-3">A nota diz @tn.ToString("C") e a soma aqui dá @Total(f).ToString("C"). Confira os itens.</div>
                     }
-                </button>
+                }
+
+                <div class="field">
+                    <label>Observação</label>
+                    <textarea class="form-control" rows="2" @bind="f.Observacao"></textarea>
+                </div>
+
+                <div class="reading-label mt-2">Próximas (pelos itens)</div>
+                @if (f.Proximas.Count == 0)
+                {
+                    <div class="field-hint mb-3">Nenhum item de controle periódico (óleo, filtros, pneus, freios, palhetas...).</div>
+                }
+                @foreach (var p in f.Proximas)
+                {
+                    <div class="proxima-linha">
+                        <label class="zerar-manter"><input type="checkbox" @bind="p.Marcada" /><span>@p.Tipo</span></label>
+                        @if (p.Marcada)
+                        {
+                            <div class="field-row">
+                                <input class="form-control" type="number" inputmode="numeric" @bind="p.Km" placeholder="no km" />
+                                <input class="form-control" type="date" @bind="p.Data" />
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (f.AnexoId is not null || f.TemAnexo)
+                {
+                    <div class="field-hint mt-2">📎 Nota da oficina anexada.</div>
+                }
+
+                <Mensagens Erro="@_erroForm" />
+                <div class="zerar-acoes mt-3">
+                    <button type="button" class="btn btn-soft btn-app" disabled="@_salvando" @onclick="() => _form = null">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-app" disabled="@_salvando" @onclick="SalvarAsync">
+                        @if (_salvando)
+                        {
+                            <span class="spinner"></span><span>Salvando...</span>
+                        }
+                        else
+                        {
+                            <Icon Name="check" Size="20" /><span>Salvar</span>
+                        }
+                    </button>
+                </div>
             </div>
-        </div>
+        }
     }
 
-    <div class="section-title">Histórico (@_historico.Count)@(_historico.Count > 0 ? $" · {_historico.Sum(h => h.Valor):C}" : "")</div>
-    @if (_historico.Count == 0)
+    @if (_form is null)
     {
-        <div class="card-app muted">Nenhuma manutenção registrada ainda.</div>
-    }
-    else
-    {
-        <div class="list-card">
-            @foreach (var h in _historico)
-            {
-                <div class="list-item">
-                    <span class="avatar tone-violet"><Icon Name="wrench" Size="20" /></span>
-                    <span class="list-item-main">
-                        <span class="list-item-title d-block">@h.Tipo · @h.Valor.ToString("C")</span>
-                        <span class="list-item-sub d-block" style="white-space:normal">
-                            @h.Data.ToString("dd/MM/yyyy") · @h.Km.ToString("N0") km@(h.Oficina is null ? "" : $" · {h.Oficina}")
-                            @if (!string.IsNullOrWhiteSpace(h.Descricao))
+        <div class="section-title">Histórico (@_historico.Count)@(_historico.Count > 0 ? $" · {_historico.Sum(h => h.Valor):C}" : "")</div>
+        @if (_historico.Count == 0)
+        {
+            <div class="card-app muted">Nenhuma manutenção registrada ainda.</div>
+        }
+        else
+        {
+            <div class="list-card">
+                @foreach (var h in _historico)
+                {
+                    <div class="list-item">
+                        <span class="avatar tone-violet"><Icon Name="wrench" Size="20" /></span>
+                        <span class="list-item-main">
+                            <span class="list-item-title d-block" style="white-space:normal">@h.Tipo · @h.Valor.ToString("C")</span>
+                            <span class="list-item-sub d-block" style="white-space:normal">
+                                @h.Data.ToString("dd/MM/yyyy") · @h.Km.ToString("N0") km@(h.Oficina is null ? "" : $" · {h.Oficina}")
+                                <br />@string.Join(" · ", h.Itens.Select(i => i.Descricao))@(h.MaoDeObra > 0 ? $" · mão de obra {h.MaoDeObra:C}" : "")
+                            </span>
+                            @if (h.TemAnexo)
                             {
-                                <br />@h.Descricao
+                                <button type="button" class="link-troca" @onclick="() => BaixarNotaAsync(h)">📎 Ver a nota</button>
                             }
                         </span>
-                    </span>
-                    @if (_podeEditar)
-                    {
-                        <button class="btn-icon" title="Editar" @onclick="() => Editar(h)"><Icon Name="pencil" Size="18" /></button>
-                        <button class="btn-icon" title="Apagar" @onclick="() => ExcluirAsync(h)"><Icon Name="trash" Size="18" /></button>
-                    }
-                </div>
-            }
-        </div>
+                        @if (_podeEditar)
+                        {
+                            <button class="btn-icon" title="Editar" @onclick="() => Editar(h)"><Icon Name="pencil" Size="18" /></button>
+                            <button class="btn-icon" title="Apagar" @onclick="() => ExcluirAsync(h)"><Icon Name="trash" Size="18" /></button>
+                        }
+                    </div>
+                }
+            </div>
+        }
     }
 }
 
 @code {
-    private static readonly string[] Tipos =
-        ["REVISÃO", "TROCA DE ÓLEO", "PNEUS", "FREIOS", "ALINHAMENTO E BALANCEAMENTO", "SUSPENSÃO", "ELÉTRICA", "FUNILARIA E PINTURA", "OUTRO"];
-
-    // Intervalos usuais (referência de mercado) — só pré-preenchem a "próxima"; o admin ajusta.
-    private static readonly Dictionary<string, (int Km, int Meses)> Intervalos = new()
-    {
-        ["REVISÃO"] = (10000, 12),
-        ["TROCA DE ÓLEO"] = (10000, 12),
-        ["PNEUS"] = (40000, 0),
-        ["FREIOS"] = (20000, 0),
-        ["ALINHAMENTO E BALANCEAMENTO"] = (10000, 0),
-    };
-
     private List<ManutencaoResumoDto>? _resumos;
     private List<ManutencaoDto> _historico = [];
     private Guid _veiculoId;
@@ -217,21 +255,40 @@ else
     private string? _erro;
     private string? _erroForm;
     private string? _ok;
+    private string? _aviso;
+    private bool _avisoOk;
 
     private bool _podeEditar => AuthState.IsInRole("Admin");
     private ManutencaoResumoDto? Resumo => _resumos?.FirstOrDefault(r => r.VeiculoId == _veiculoId);
 
-    private class Form
+    private class ItemLinha
+    {
+        public decimal Quantidade { get; set; } = 1;
+        public string Descricao { get; set; } = "";
+        public decimal Valor { get; set; }
+    }
+
+    private class ProximaLinha
     {
         public string Tipo { get; set; } = "";
-        public bool Outro { get; set; }
+        public bool Marcada { get; set; } = true;
+        public int? Km { get; set; }
+        public DateOnly? Data { get; set; }
+    }
+
+    private class Form
+    {
+        public bool Preenchendo { get; set; }
         public DateOnly Data { get; set; }
         public int Km { get; set; }
-        public decimal Valor { get; set; }
         public string? Oficina { get; set; }
-        public string? Descricao { get; set; }
-        public int? ProximaKm { get; set; }
-        public DateOnly? ProximaData { get; set; }
+        public string? Observacao { get; set; }
+        public decimal MaoDeObra { get; set; }
+        public List<ItemLinha> Itens { get; set; } = [];
+        public List<ProximaLinha> Proximas { get; set; } = [];
+        public Guid? AnexoId { get; set; }
+        public bool TemAnexo { get; set; }
+        public decimal? TotalNota { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -269,38 +326,82 @@ else
 
     private static DateOnly Hoje => DateOnly.FromDateTime(Rotulos.Local(DateTimeOffset.UtcNow).DateTime);
 
-    private static (int Km, int Meses)? Sugestao(string tipo) => Intervalos.TryGetValue(tipo, out var s) ? s : null;
+    private static decimal Total(Form f) => f.Itens.Sum(i => i.Valor) + f.MaoDeObra;
 
     private void NovaManutencao()
     {
-        _erroForm = _ok = null;
+        _erroForm = _ok = _aviso = null;
         _editandoId = null;
-        _form = new Form { Data = Hoje, Km = Resumo?.OdometroAtual ?? 0 };
+        _form = new Form { Data = Hoje, Km = Resumo?.OdometroAtual ?? 0, Itens = [new ItemLinha()] };
+    }
+
+    private void NotaLidaAsync(ResultadoEnvio resultado)
+    {
+        if (!resultado.Ok)
+        {
+            _erroForm = $"Não consegui enviar a nota: {resultado.Mensagem}";
+            return;
+        }
+
+        var nota = resultado.Ler<LeituraNotaDto>();
+        var f = _form!;
+        f.Preenchendo = true;
+        if (nota is null)
+            return;
+
+        f.AnexoId = nota.AnexoId;
+        f.Data = nota.Data ?? f.Data;
+        f.Km = nota.Km ?? f.Km;
+        f.Oficina = nota.Oficina ?? f.Oficina;
+        f.Observacao = nota.Observacao;
+        f.MaoDeObra = nota.MaoDeObra ?? 0;
+        f.TotalNota = nota.Total;
+        if (nota.Itens.Count > 0)
+            f.Itens = nota.Itens.Select(i => new ItemLinha { Quantidade = i.Quantidade, Descricao = i.Descricao, Valor = i.Valor }).ToList();
+        AtualizarSugestoes();
+
+        _avisoOk = nota.LeuAlgo;
+        _aviso = !nota.LeuAlgo
+            ? "Não consegui ler os itens da nota — preencha abaixo (a nota ficou anexada)."
+            : $"Li a nota: {nota.Itens.Count} item(ns){(nota.MaoDeObra is > 0 ? $", mão de obra {nota.MaoDeObra:C}" : "")}{(nota.Total is { } t ? $", total {t:C}" : "")}. Confira e salve."
+              + (nota.Km is null ? " A nota não tem o km: confira o km do carro." : "");
+    }
+
+    /// <summary>Próximas sugeridas pelos itens; mantém o que a pessoa já ajustou/desmarcou.</summary>
+    private void AtualizarSugestoes()
+    {
+        var f = _form;
+        if (f is null)
+            return;
+        var itens = f.Itens.Where(i => !string.IsNullOrWhiteSpace(i.Descricao))
+            .Select(i => new ManutencaoItemDto(i.Quantidade, i.Descricao, i.Valor)).ToList();
+        var sugeridas = CategoriasManutencao.Sugerir(itens, f.Km, f.Data);
+        var atuais = f.Proximas.ToDictionary(p => p.Tipo);
+        f.Proximas = sugeridas.Select(s => atuais.TryGetValue(s.Tipo, out var existente)
+                ? existente
+                : new ProximaLinha { Tipo = s.Tipo, Km = s.ProximaKm, Data = s.ProximaData })
+            // Próximas que não vêm de item (ex.: editando uma antiga) continuam na lista.
+            .Concat(f.Proximas.Where(p => sugeridas.All(s => s.Tipo != p.Tipo) && !CategoriasManutencao.Intervalos.ContainsKey(p.Tipo)))
+            .ToList();
     }
 
     private void Editar(ManutencaoDto h)
     {
-        _erroForm = _ok = null;
+        _erroForm = _ok = _aviso = null;
         _editandoId = h.Id;
         _form = new Form
         {
-            Tipo = h.Tipo, Outro = !Tipos.Contains(h.Tipo), Data = h.Data, Km = h.Km, Valor = h.Valor, Oficina = h.Oficina,
-            Descricao = h.Descricao, ProximaKm = h.ProximaKm, ProximaData = h.ProximaData,
+            Preenchendo = true,
+            Data = h.Data,
+            Km = h.Km,
+            Oficina = h.Oficina,
+            Observacao = h.Observacao,
+            MaoDeObra = h.MaoDeObra,
+            TemAnexo = h.TemAnexo,
+            Itens = h.Itens.Select(i => new ItemLinha { Quantidade = i.Quantidade, Descricao = i.Descricao, Valor = i.Valor }).ToList(),
+            Proximas = h.Proximas.Select(p => new ProximaLinha { Tipo = p.Tipo, Km = p.ProximaKm, Data = p.ProximaData }).ToList(),
         };
-    }
-
-    private void EscolherTipo(string tipo)
-    {
-        var f = _form!;
-        f.Outro = tipo == "OUTRO";
-        f.Tipo = f.Outro ? "" : tipo;
-        // Só sugere a próxima se ela ainda estiver vazia (não apaga o que o admin digitou).
-        if (Sugestao(f.Tipo) is { } s)
-        {
-            f.ProximaKm ??= f.Km > 0 ? f.Km + s.Km : null;
-            if (s.Meses > 0)
-                f.ProximaData ??= f.Data.AddMonths(s.Meses);
-        }
+        AtualizarSugestoes();
     }
 
     private async Task SalvarAsync()
@@ -310,10 +411,15 @@ else
         _erroForm = null;
         try
         {
+            var itens = f.Itens.Where(i => !string.IsNullOrWhiteSpace(i.Descricao) || i.Valor != 0)
+                .Select(i => new ManutencaoItemDto(i.Quantidade, i.Descricao, i.Valor)).ToList();
+            var proximas = f.Proximas.Where(p => p.Marcada && (p.Km is not null || p.Data is not null))
+                .Select(p => new ManutencaoProximaDto(p.Tipo, p.Km, p.Data)).ToList();
             await Api.SalvarManutencaoAsync(_editandoId, new SalvarManutencaoRequest(
-                _veiculoId, f.Data, f.Km, f.Tipo, f.Descricao, f.Valor, f.Oficina, f.ProximaKm, f.ProximaData));
+                _veiculoId, f.Data, f.Km, f.Oficina, f.Observacao, f.MaoDeObra, itens, proximas, f.AnexoId));
             _ok = _editandoId is null ? "✅ Manutenção registrada." : "✅ Manutenção atualizada.";
             _form = null;
+            _aviso = null;
             await CarregarAsync();
         }
         catch (HttpRequestException ex)
@@ -326,9 +432,23 @@ else
         }
     }
 
+    private async Task BaixarNotaAsync(ManutencaoDto h)
+    {
+        _erro = null;
+        try
+        {
+            var nome = $"nota-oficina-{h.Data:yyyy-MM-dd}";
+            _erro = await JS.InvokeAsync<string?>("cvBaixar", Api.AnexoManutencaoUrl(h.Id), AuthState.Token, nome);
+        }
+        catch (JSException)
+        {
+            _erro = "Não consegui abrir a nota.";
+        }
+    }
+
     private async Task ExcluirAsync(ManutencaoDto h)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Apagar a manutenção {h.Tipo} de {h.Data:dd/MM/yyyy} ({h.Valor:C})?"))
+        if (!await JS.InvokeAsync<bool>("confirm", $"Apagar a manutenção de {h.Data:dd/MM/yyyy} ({h.Valor:C})?"))
             return;
         _erro = _ok = null;
         try

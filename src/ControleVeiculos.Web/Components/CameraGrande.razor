@@ -10,7 +10,7 @@
 {
     @* Aparência livre (ex.: a própria foto do perfil vira o botão, na lista de motoristas). *@
     <label class="foto-trigger @(_ocupado ? "is-busy" : "")" title="@Titulo">
-        <input type="file" class="file-hidden" accept="image/*" capture="@CapturaEfetiva" @ref="_input" />
+        <input type="file" class="file-hidden" accept="@Aceitar" capture="@CapturaEfetiva" @ref="_input" />
         @ChildContent
         @if (_ocupado)
         {
@@ -21,7 +21,7 @@
 }
 
 <label class="camera-cta @Tom @(Compacto ? "compact" : "") @(_ocupado ? "is-busy" : "")">
-    <input type="file" class="file-hidden" accept="image/*" capture="@CapturaEfetiva" @ref="_input" />
+    <input type="file" class="file-hidden" accept="@Aceitar" capture="@CapturaEfetiva" @ref="_input" />
     <span class="camera-icon">
         @if (_ocupado)
         {
@@ -56,6 +56,9 @@
 
     /// <summary>Sem "capture": o celular oferece galeria, câmera ou arquivos (em vez de abrir a câmera direto).</summary>
     [Parameter] public bool Galeria { get; set; }
+
+    /// <summary>Tipos de arquivo aceitos (ex.: "image/*,application/pdf" pra nota da oficina).</summary>
+    [Parameter] public string Aceitar { get; set; } = "image/*";
 
     /// <summary>Abre o ajuste de recorte quadrado (foto de perfil) antes de enviar; LadoMaximo = tamanho final.</summary>
     [Parameter] public bool Recorte { get; set; }

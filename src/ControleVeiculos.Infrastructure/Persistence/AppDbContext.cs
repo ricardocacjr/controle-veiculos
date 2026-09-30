@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<MotivoUso> MotivosUso => Set<MotivoUso>();
     public DbSet<ParametrosCusto> ParametrosCusto => Set<ParametrosCusto>();
     public DbSet<Manutencao> Manutencoes => Set<Manutencao>();
+    public DbSet<ManutencaoAnexo> ManutencaoAnexos => Set<ManutencaoAnexo>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

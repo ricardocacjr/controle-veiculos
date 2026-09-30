@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IVoiceTranscriptionService, GoogleSpeechTranscriptionService>();
         services.AddScoped<IOdometerOcrService, GoogleVisionOdometerOcrService>();
         services.AddScoped<IFuelReceiptOcrService, GoogleVisionFuelReceiptOcrService>();
+        services.AddScoped<ITextoDocumentoService, TextoDocumentoService>();
 
         services.AddHttpClient<IGeocodingService, NominatimGeocodingService>(client =>
         {

@@ -87,7 +87,9 @@ window.cvBaixar = async (url, token, nomeArquivo) => {
             const blob = await resp.blob();
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = nomeArquivo;
+            // Sem extensão no nome, usa a do arquivo que veio (nota da oficina pode ser PDF ou foto).
+            link.download = nomeArquivo.includes(".") ? nomeArquivo
+                : nomeArquivo + (blob.type.includes("pdf") ? ".pdf" : blob.type.includes("png") ? ".png" : ".jpg");
             document.body.appendChild(link);
             link.click();
             link.remove();
