@@ -9,7 +9,9 @@ public record UpdateUsageRequest(
     int? OdometroFinal,
     DateTimeOffset IniciadoEm,
     DateTimeOffset? FinalizadoEm,
-    string? Observacao);
+    string? Observacao,
+    string? Origem = null,
+    string? Destino = null);
 
 public record UpdateFuelEntryRequest(decimal Litros, decimal ValorTotal, int Odometro, bool TanqueCheio, bool PagoPeloMotorista);
 

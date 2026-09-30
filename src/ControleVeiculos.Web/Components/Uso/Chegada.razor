@@ -49,14 +49,16 @@
         </div>
 
         <div class="reading-card">
-            <div class="reading-label">Onde você está</div>
-            @if (_posicao is { Ok: true } p && !Base.EstaNaBase(p.Lat!.Value, p.Lng!.Value))
+            <div class="reading-label">Onde o carro ficou</div>
+            @if (_posicao is { Ok: true } p && !_naBase)
             {
-                <div class="notice notice-error">
-                    Você está a @DistanciaTexto(p) da @Base.Nome. Se já chegou, pode finalizar mesmo assim.
-                </div>
+                <div class="notice notice-info">Você está a @DistanciaTexto(p) da @Base.Nome.</div>
             }
-            <LocalLido NaBase="@(_posicao is { Ok: true } q && Base.EstaNaBase(q.Lat!.Value, q.Lng!.Value))" Posicao="_posicao" />
+            <LocalLido NaBase="_naBase" Endereco="@_enderecoGps" Posicao="_posicao" />
+            @if (_posicao?.Ok != true)
+            {
+                <button type="button" class="btn btn-soft btn-app mt-2" disabled="@_buscandoLocal" @onclick="TentarGpsAsync"><Icon Name="pin" Size="18" /> Tentar pegar o local de novo</button>
+            }
         </div>
 
         <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_km is null || _km < Uso.OdometroInicial)" @onclick="() => _passo = 2">
@@ -82,6 +84,10 @@ else
         <div class="summary-row">
             <Icon Name="flag" Class="summary-icon" />
             <span><span class="summary-key">Você rodou</span><span class="summary-value">@((_km - Uso.OdometroInicial)?.ToString("N0")) km</span></span>
+        </div>
+        <div class="summary-row">
+            <Icon Name="pin" Class="summary-icon" />
+            <span><span class="summary-key">Ficou em</span><span class="summary-value">@(_localChegada == $"{Base.Nome} - {Base.Endereco}" ? Base.Nome : !string.IsNullOrWhiteSpace(_localChegada) ? _localChegada : "Não informado")</span></span>
         </div>
         <div class="summary-row">
             <Icon Name="clock" Class="summary-icon" />
@@ -153,10 +159,11 @@ else
         }
 
         _km = resultado.Ler<VehiclePhotoDto>()?.OdometroLido;
-        _posicao = resultado.Posicao;
         _fotoLida = true;
         _corrigindoKm = false;
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
+        // Sem GPS junto com a foto (iPhone logo depois da câmera): tenta de novo agora.
+        await DefinirLocalAsync(resultado.Posicao.Ok ? resultado.Posicao : await Localizacao.ObterAsync());
     }
 
     private async Task DigitarSemFotoAsync()
@@ -166,7 +173,28 @@ else
         _km = null;
         _corrigindoKm = false;
         _fotoLida = true;
-        _posicao = await Localizacao.ObterAsync();
+        await DefinirLocalAsync(await Localizacao.ObterAsync());
+    }
+
+    private bool _naBase;
+    private string? _enderecoGps;
+    private string? _localChegada;
+    private bool _buscandoLocal;
+
+    private async Task TentarGpsAsync()
+    {
+        _buscandoLocal = true;
+        try { await DefinirLocalAsync(await Localizacao.ObterAsync()); }
+        finally { _buscandoLocal = false; }
+    }
+
+    /// <summary>Onde o carro ficou, só pelo GPS: na base → "Base - endereço"; fora → endereço do GPS.</summary>
+    private async Task DefinirLocalAsync(Posicao posicao)
+    {
+        _posicao = posicao;
+        _naBase = posicao.Ok && Base.EstaNaBase(posicao.Lat!.Value, posicao.Lng!.Value);
+        _enderecoGps = !_naBase && posicao.Ok ? await Localizacao.EnderecoAsync(posicao.Lat!.Value, posicao.Lng!.Value) : null;
+        _localChegada = _naBase ? $"{Base.Nome} - {Base.Endereco}" : _enderecoGps;
     }
 
     private async Task FinalizarAsync()
@@ -178,7 +206,7 @@ else
         _erro = null;
         try
         {
-            await Api.FinalizarUsoAsync(Uso.Id, _km.Value, _semFoto);
+            await Api.FinalizarUsoAsync(Uso.Id, _km.Value, _semFoto, _localChegada, _posicao?.Lat, _posicao?.Lng);
             await JS.InvokeVoidAsync("cvVibrar", new[] { 80, 60, 80 });
             await OnFinalizado.InvokeAsync($"Você rodou {_km.Value - Uso.OdometroInicial:N0} km.");
         }

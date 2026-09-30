@@ -4,6 +4,7 @@
 @inject AuthState AuthState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject BaseOperacional Base
 
 <PageTitle>Uso registrado</PageTitle>
 
@@ -48,14 +49,14 @@ else
                 }
             </div>
             <div class="hero-full">
-                <div class="hero-label">Origem</div>
-                <div class="hero-value">@(_uso.Origem ?? "Não informada")</div>
+                <div class="hero-label">Saiu de</div>
+                <div class="hero-value">@(_uso.Origem ?? "Não informado")</div>
             </div>
-            @if (!string.IsNullOrWhiteSpace(_uso.Destino))
+            @if (!string.IsNullOrWhiteSpace(_uso.Destino) || _uso.Status == UsageRecordStatus.Finalizado)
             {
                 <div class="hero-full">
-                    <div class="hero-label">Destino</div>
-                    <div class="hero-value">@_uso.Destino</div>
+                    <div class="hero-label">Chegou em (onde o carro ficou)</div>
+                    <div class="hero-value">@(string.IsNullOrWhiteSpace(_uso.Destino) ? "Não informado" : _uso.Destino)</div>
                 </div>
             }
         </div>
@@ -128,6 +129,21 @@ else
                     <div class="field-hint mb-3">= @((kc - e.KmSaida).ToString("N0")) km rodados</div>
                 }
             }
+            <datalist id="locais-edicao">
+                <option value="@TextoBase"></option>
+                <option value="OFICINA"></option>
+            </datalist>
+            <div class="field">
+                <label>Saiu de</label>
+                <input class="form-control" list="locais-edicao" @bind="e.Origem" @bind:event="oninput" placeholder="Base, OFICINA, endereço..." />
+            </div>
+            @if (_uso.Status == UsageRecordStatus.Finalizado)
+            {
+                <div class="field">
+                    <label>Chegou em (onde o carro ficou)</label>
+                    <input class="form-control" list="locais-edicao" @bind="e.Destino" @bind:event="oninput" placeholder="Base, OFICINA, endereço..." />
+                </div>
+            }
             <div class="field">
                 <label>Observação</label>
                 <textarea class="form-control" rows="3" @bind="e.Observacao"></textarea>
@@ -167,6 +183,12 @@ else
     {
         <div class="section-title">Local de saída</div>
         <MapaMini Latitude="latSaida" Longitude="lngSaida" />
+    }
+
+    @if (_uso.LatitudeFinal is { } latChegada && _uso.LongitudeFinal is { } lngChegada)
+    {
+        <div class="section-title">Onde o carro ficou</div>
+        <MapaMini Latitude="latChegada" Longitude="lngChegada" />
     }
 
     <div class="section-title">Abastecimentos (@_uso.Abastecimentos.Count)</div>
@@ -309,6 +331,7 @@ else
     private string? _ok;
 
     private static readonly TimeSpan Brasilia = TimeSpan.FromHours(-3);
+    private string TextoBase => $"{Base.Nome} - {Base.Endereco}";
 
     private class EdicaoModel
     {
@@ -320,6 +343,8 @@ else
         public int KmSaida { get; set; }
         public int? KmChegada { get; set; }
         public string? Observacao { get; set; }
+        public string? Origem { get; set; }
+        public string? Destino { get; set; }
     }
 
     private class AbastecimentoModel
@@ -361,6 +386,8 @@ else
             KmSaida = _uso.OdometroInicial,
             KmChegada = _uso.OdometroFinal,
             Observacao = _uso.Observacao,
+            Origem = _uso.Origem,
+            Destino = _uso.Destino,
         };
     }
 
@@ -375,7 +402,7 @@ else
                 e.MotoristaId, e.EmpresaId, e.Finalidade, e.KmSaida, e.KmChegada,
                 new DateTimeOffset(e.Saida, Brasilia),
                 e.Chegada is { } c ? new DateTimeOffset(c, Brasilia) : null,
-                e.Observacao));
+                e.Observacao, e.Origem, e.Destino));
             if (atualizado is not null)
                 _uso = atualizado;
             _edicao = null;

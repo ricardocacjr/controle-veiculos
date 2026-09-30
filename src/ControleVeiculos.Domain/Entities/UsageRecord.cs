@@ -19,6 +19,7 @@ public class UsageRecord : BaseEntity, ITenantScoped
 
     public required string Finalidade { get; set; }
     public string? Origem { get; set; }
+    /// <summary>Onde o carro ficou na chegada (normalmente a base; pode ser oficina, cliente...).</summary>
     public string? Destino { get; set; }
 
     /// <summary>Coordenadas capturadas pelo navegador/app no momento de iniciar o uso — usadas
@@ -26,6 +27,10 @@ public class UsageRecord : BaseEntity, ITenantScoped
     /// disponíveis. Guardadas pra auditoria/futuro mapa, não exibidas na tela ainda.</summary>
     public double? LatitudeInicial { get; set; }
     public double? LongitudeInicial { get; set; }
+
+    /// <summary>GPS na chegada (foto do painel) — mostra no mapa onde o carro ficou.</summary>
+    public double? LatitudeFinal { get; set; }
+    public double? LongitudeFinal { get; set; }
 
     public int OdometroInicial { get; set; }
     public int? OdometroFinal { get; set; }

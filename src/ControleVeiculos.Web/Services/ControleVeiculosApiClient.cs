@@ -364,10 +364,10 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
         return await response.Content.ReadFromJsonAsync<UsageRecordDto>();
     }
 
-    public async Task FinalizarUsoAsync(Guid usoId, int odometroFinal, bool semFoto = false)
+    public async Task FinalizarUsoAsync(Guid usoId, int odometroFinal, bool semFoto = false, string? localChegada = null, double? latitude = null, double? longitude = null)
     {
         using var httpRequest = AuthorizedRequest(HttpMethod.Post, $"api/usagerecords/{usoId}/finalizar");
-        httpRequest.Content = JsonContent.Create(new FinishUsageRequest(odometroFinal, semFoto));
+        httpRequest.Content = JsonContent.Create(new FinishUsageRequest(odometroFinal, semFoto, localChegada, latitude, longitude));
         var response = await http.SendAsync(httpRequest);
         await EnsureSuccessWithApiErrorAsync(response);
     }

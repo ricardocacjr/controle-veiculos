@@ -183,7 +183,7 @@ else
                     <Icon Name="pin" Class="summary-icon" />
                     <span class="flex-grow-1">
                         <span class="summary-key">Saindo de</span>
-                        <span class="summary-value">@(_naBase ? Base.Nome : _origem ?? (_posicao?.Ok == true ? "Local marcado no mapa (GPS)" : "Local não identificado"))</span>
+                        <span class="summary-value">@(_origem == $"{Base.Nome} - {Base.Endereco}" ? Base.Nome : !string.IsNullOrWhiteSpace(_origem) ? _origem : _posicao?.Ok == true ? "Local marcado no mapa (GPS)" : "Local não identificado")</span>
                         @if (SemLocal)
                         {
                             <span class="d-block muted mt-1" style="font-size:14px">@(_posicao?.Error is { } motivo ? $"Motivo: {motivo}" : "")</span>
@@ -326,7 +326,8 @@ else
         _posicao = resultado.Posicao;
         _naBase = _posicao.Ok && Base.EstaNaBase(_posicao.Lat!.Value, _posicao.Lng!.Value);
         _km = leitura?.OdometroLido;
-        _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : leitura?.EnderecoSugerido;
+        _enderecoGps = leitura?.EnderecoSugerido;
+        _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : _enderecoGps;
         _fotoLida = true;
         _corrigindoKm = false;
         StateHasChanged();
@@ -337,11 +338,12 @@ else
         if (!_posicao.Ok)
             await BuscarLocalAsync();
         else if (!_naBase && _origem is null)
-            _origem = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
+            _origem = _enderecoGps = await Localizacao.EnderecoAsync(_posicao.Lat!.Value, _posicao.Lng!.Value);
     }
 
     private bool _buscandoLocal;
-    private bool SemLocal => !_naBase && _posicao?.Ok != true;
+    private bool SemLocal => string.IsNullOrWhiteSpace(_origem) && _posicao?.Ok != true;
+    private string? _enderecoGps;
 
     private async Task BuscarLocalAsync()
     {
@@ -352,8 +354,9 @@ else
             var nova = await Localizacao.ObterAsync();
             _posicao = nova;
             _naBase = nova.Ok && Base.EstaNaBase(nova.Lat!.Value, nova.Lng!.Value);
-            _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}"
-                : nova.Ok ? await Localizacao.EnderecoAsync(nova.Lat!.Value, nova.Lng!.Value) : null;
+            _enderecoGps = !_naBase && nova.Ok ? await Localizacao.EnderecoAsync(nova.Lat!.Value, nova.Lng!.Value) : null;
+            // Local sempre pelo GPS (sem escolha manual).
+            _origem = _naBase ? $"{Base.Nome} - {Base.Endereco}" : _enderecoGps;
         }
         finally
         {

@@ -118,7 +118,7 @@ começa e termina na **base** (seção `Base` do `appsettings.json` do Web — R
 Grubba, 2939, raio de 300 m). **Em uso**, três botões: *Abasteci* (foto do cupom → litros/valor;
 foto do painel → km; local vira ponto no mapa), *Tive um problema* (foto, ou áudio gravado no
 próprio app em WAV 16 kHz — o iPhone grava AAC, que o Google Speech v1 não aceita) e *Cheguei*
-(foto do painel; sem câmera dá pra digitar o km, e o relatório aponta "chegada sem foto"; avisa se não estiver na base). Link
+(foto do painel; sem câmera dá pra digitar o km, e o relatório aponta "chegada sem foto"). O GPS da chegada grava onde o carro ficou (endereço + mapa) — saída e chegada fora da base viram alerta no relatório. Link
 discreto "Minhas saídas" pro histórico.
 
 ### Relatórios (administração)

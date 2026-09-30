@@ -92,7 +92,7 @@ public static class RelatorioExcel
 
     private static void Saidas(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, decimal tarifa, IReadOnlySet<Guid> diaZero)
     {
-        string[] cab = ["Saída", "Chegada", "Horas", "Motorista", "Empresa", "Motivo", "Veículo", "Km saída", "Km chegada", "Km rodados", "Saindo de", "Situação", "Litros", "Combustível (R$)", "Pago pelo motorista (R$)", "Valor a cobrar (R$)", "Observação"];
+        string[] cab = ["Saída", "Chegada", "Horas", "Motorista", "Empresa", "Motivo", "Veículo", "Km saída", "Km chegada", "Km rodados", "Saiu de", "Chegou em", "Situação", "Litros", "Combustível (R$)", "Pago pelo motorista (R$)", "Valor a cobrar (R$)", "Observação"];
         var linhas = saidas.OrderBy(u => u.IniciadoEm).Select(u => new XLCellValue[]
         {
             Local(u.IniciadoEm),
@@ -106,6 +106,7 @@ public static class RelatorioExcel
             u.OdometroFinal is { } kmFim ? kmFim : Blank.Value,
             u.Status == UsageRecordStatus.Finalizado ? RelatorioCalculadora.Km(u) : Blank.Value,
             u.Origem ?? "",
+            u.Destino ?? "",
             u.Status switch { UsageRecordStatus.EmAndamento => "Em andamento", UsageRecordStatus.Finalizado => "Encerrada", _ => "Cancelada" },
             RelatorioCalculadora.Litros(u, diaZero),
             RelatorioCalculadora.Gasto(u, diaZero),
@@ -117,8 +118,8 @@ public static class RelatorioExcel
         Formatar(ws, [1, 2], FormatoDataHora);
         Formatar(ws, [3], "#,##0.00");
         Formatar(ws, [8, 9, 10], FormatoKm);
-        Formatar(ws, [13], FormatoLitros);
-        Formatar(ws, [14, 15, 16], FormatoReais);
+        Formatar(ws, [14], FormatoLitros);
+        Formatar(ws, [15, 16, 17], FormatoReais);
         Ajustar(ws);
     }
 

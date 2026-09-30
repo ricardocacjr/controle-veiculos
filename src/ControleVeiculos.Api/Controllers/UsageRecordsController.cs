@@ -100,6 +100,9 @@ public class UsageRecordsController(
             usage.FinalizadoEm = request.FinalizadoEm;
         }
         usage.Observacao = string.IsNullOrWhiteSpace(request.Observacao) ? null : request.Observacao.Trim();
+        usage.Origem = string.IsNullOrWhiteSpace(request.Origem) ? null : request.Origem.Trim();
+        if (encerrada)
+            usage.Destino = string.IsNullOrWhiteSpace(request.Destino) ? null : request.Destino.Trim();
         usage.UpdatedAt = DateTimeOffset.UtcNow;
 
         await motivoUsoRepository.EnsureExistsAsync(finalidade, ct);
@@ -328,6 +331,14 @@ public class UsageRecordsController(
         usage.OdometroFinal = request.OdometroFinal;
         usage.FinalizadoEm = DateTimeOffset.UtcNow;
         usage.Status = UsageRecordStatus.Finalizado;
+
+        // Onde o carro ficou: o que o motorista escolheu (Base, Oficina...) ou, sem isso, o endereço do GPS.
+        usage.LatitudeFinal = request.Latitude;
+        usage.LongitudeFinal = request.Longitude;
+        var localChegada = request.LocalChegada?.Trim();
+        if (string.IsNullOrWhiteSpace(localChegada) && request.Latitude is { } latF && request.Longitude is { } lngF)
+            localChegada = await geocodingService.ReverseGeocodeAsync(latF, lngF, ct);
+        usage.Destino = string.IsNullOrWhiteSpace(localChegada) ? null : localChegada[..Math.Min(localChegada.Length, 300)];
         usage.UpdatedAt = DateTimeOffset.UtcNow;
         usageRepository.Update(usage);
 
@@ -511,7 +522,7 @@ public class UsageRecordsController(
         u.Fotos.Select(f => new VehiclePhotoDto(f.Id, f.Tipo, f.ArquivoUrl, f.Observacao, f.OdometroLido, f.CreatedAt)).ToList(),
         u.NotasDeVoz.Select(n => new VoiceNoteDto(n.Id, n.ArquivoUrl, n.TranscricaoTexto, n.Status, n.CreatedAt)).ToList(),
         u.Abastecimentos.OrderBy(a => a.CreatedAt).Select(ToFuelDto).ToList(),
-        u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao, u.EmpresaId);
+        u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao, u.EmpresaId, u.LatitudeFinal, u.LongitudeFinal);
 
     private static FuelEntryDto ToFuelDto(FuelEntry a) =>
         new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista);

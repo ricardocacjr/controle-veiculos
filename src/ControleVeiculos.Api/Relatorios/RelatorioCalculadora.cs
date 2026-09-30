@@ -370,6 +370,13 @@ public static class RelatorioCalculadora
                     u.Id, u.IniciadoEm));
             }
 
+            // 4b. Onde o carro ficou na chegada.
+            if (u.Status == UsageRecordStatus.Finalizado && u.LatitudeFinal is { } latF && u.LongitudeFinal is { } lngF
+                && baseOperacional is { Configurada: true } bc && bc.DistanciaMetros(latF, lngF) is var metrosF && metrosF > bc.RaioMetros)
+                alertas.Add(new("Chegada fora da base", GravidadeAlerta.Media,
+                    string.Create(PtBr, $"{Quem(u)} deixou o {u.Veiculo?.Placa} a {metrosF / 1000:N1} km da base ({u.Destino ?? "local marcado no mapa"}), em {Data(u.FinalizadoEm ?? u.IniciadoEm)}."),
+                    u.Id, u.FinalizadoEm ?? u.IniciadoEm));
+
             // 5. Abastecimento sem foto do comprovante.
             var comprovantes = u.Fotos.Count(f => f.Tipo == VehiclePhotoType.ComprovanteAbastecimento);
             if (!u.Importado && u.Abastecimentos.Count > comprovantes)
