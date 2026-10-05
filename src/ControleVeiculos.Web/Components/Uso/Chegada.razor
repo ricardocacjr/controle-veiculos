@@ -16,6 +16,9 @@
         <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. O app lê o número sozinho."
                       TextoOcupado="Lendo o painel..." Url="@($"api/usagerecords/{Uso.Id}/fotos")" Campos="CamposFoto"
                       Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
+        <CameraGrande Titulo="Escolher da galeria" Subtitulo="Foto do painel que já está no celular" Icone="image" Compacto="true" Galeria="true"
+                      TextoOcupado="Lendo o painel..." Url="@($"api/usagerecords/{Uso.Id}/fotos")" Campos="CamposFoto"
+                      Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
         <Mensagens Erro="@_erro" />
         <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="DigitarSemFotoAsync">Sem câmera? Digitar o km</button>
     }

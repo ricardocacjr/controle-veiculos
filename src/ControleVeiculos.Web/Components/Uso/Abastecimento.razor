@@ -230,6 +230,7 @@
         _valorLitro = leitura?.ValorPorLitro;
         _leuAlgo = _litros is not null || _valorTotal is not null;
         _comprovanteId = leitura?.ComprovanteId;
+        _desconto = leitura?.Desconto;
         _cupomLido = true;
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }

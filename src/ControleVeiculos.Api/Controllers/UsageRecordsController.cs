@@ -490,7 +490,7 @@ public class UsageRecordsController(
         await usageRepository.AddPhotoAsync(photo, ct);
         await usageRepository.SaveChangesAsync(ct);
 
-        return Ok(new FuelReceiptReadingDto(leitura.Litros, leitura.ValorTotal, leitura.ValorPorLitro, comprovanteId));
+        return Ok(new FuelReceiptReadingDto(leitura.Litros, leitura.ValorTotal, leitura.ValorPorLitro, comprovanteId, leitura.Desconto));
     }
 
     private async Task<string> SaveFileAsync(IFormFile file, string subpasta, Guid usageId, CancellationToken ct)

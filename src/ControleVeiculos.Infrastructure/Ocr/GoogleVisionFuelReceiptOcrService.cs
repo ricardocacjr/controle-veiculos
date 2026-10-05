@@ -87,6 +87,28 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
     /// </summary>
     public static FuelReceiptReading Interpretar(string texto)
     {
+        var leitura = InterpretarValores(texto);
+        return leitura with { Desconto = Desconto(texto, leitura.ValorTotal) };
+    }
+
+    /// <summary>
+    /// Desconto do app do posto (pagou pelo app: o print mostra "Desconto R$ 13,77" ou o total e o
+    /// valor pago). Pelo rótulo; sem rótulo, a diferença entre o valor na bomba e o valor pago.
+    /// </summary>
+    private static decimal? Desconto(string texto, decimal? bomba)
+    {
+        var linhas = texto.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var desconto = ValorNaLinha(linhas, "DESCONTO") ?? ValorNaLinha(linhas, "DESC.") ?? ValorNaLinha(linhas, "ECONOMI")
+            ?? ValorNaLinha(linhas, "ABATIMENTO");
+        if (desconto is null && bomba is > 0
+            && (ValorNaLinha(linhas, "VALOR PAGO") ?? ValorNaLinha(linhas, "TOTAL PAGO") ?? ValorNaLinha(linhas, "VOCÊ PAGOU") ?? ValorNaLinha(linhas, "VOCE PAGOU")) is { } pago
+            && pago < bomba)
+            desconto = bomba - pago;
+        return desconto is > 0 && (bomba is null || desconto < bomba) ? desconto : null;
+    }
+
+    private static FuelReceiptReading InterpretarValores(string texto)
+    {
         var linhas = texto.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         // 1. Linha do item (às vezes o OCR quebra em duas linhas — tenta também juntando com a seguinte).
@@ -140,10 +162,11 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
         if (valorPorLitro is not (>= PrecoMinimo and <= PrecoMaximo))
             valorPorLitro = null;
 
-        var valorTotal = ValorNaLinha(linhas, "VALOR PAGO")
-            ?? ValorNaLinha(linhas, "A PAGAR")
+        // Valor na bomba primeiro (o pago pode ter desconto do app).
+        var valorTotal = ValorNaLinha(linhas, "VALOR TOTAL")
             ?? ValorNaLinha(linhas, "TOTAL R$")
-            ?? ValorNaLinha(linhas, "VALOR TOTAL")
+            ?? ValorNaLinha(linhas, "A PAGAR")
+            ?? ValorNaLinha(linhas, "VALOR PAGO")
             ?? numeros.Where(n => n.Casas == 2).Select(n => (decimal?)n.Valor).OrderByDescending(v => v).FirstOrDefault();
 
         // Dois dos três certos → o terceiro sai da conta.

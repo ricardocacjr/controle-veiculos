@@ -1,6 +1,8 @@
 namespace ControleVeiculos.Application.Interfaces;
 
-public record FuelReceiptReading(decimal? Litros, decimal? ValorTotal, decimal? ValorPorLitro);
+/// <param name="ValorTotal">Valor na bomba (antes do desconto).</param>
+/// <param name="Desconto">Desconto do app do posto, quando o cupom/print mostra.</param>
+public record FuelReceiptReading(decimal? Litros, decimal? ValorTotal, decimal? ValorPorLitro, decimal? Desconto = null);
 
 public interface IFuelReceiptOcrService
 {
