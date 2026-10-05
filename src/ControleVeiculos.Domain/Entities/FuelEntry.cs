@@ -10,7 +10,11 @@ public class FuelEntry : BaseEntity, ITenantScoped
     public UsageRecord? Uso { get; set; }
 
     public decimal Litros { get; set; }
+    /// <summary>Valor PAGO (já com o desconto do app do posto) — é o que entra nos custos.</summary>
     public decimal ValorTotal { get; set; }
+
+    /// <summary>Desconto do app do posto (valor na bomba = ValorTotal + Desconto).</summary>
+    public decimal Desconto { get; set; }
     public int Odometro { get; set; }
 
     /// <summary>Preço por litro no momento do abastecimento — lido do comprovante quando
@@ -28,4 +32,7 @@ public class FuelEntry : BaseEntity, ITenantScoped
     /// <summary>Motorista pagou do próprio bolso (ex.: uso pessoal no fim de semana) — não é gasto
     /// da empresa e abate do valor a cobrar dessa saída.</summary>
     public bool PagoPeloMotorista { get; set; }
+
+    /// <summary>Foto do cupom do posto (<see cref="Anexo"/>), pra conferir depois.</summary>
+    public Guid? ComprovanteId { get; set; }
 }

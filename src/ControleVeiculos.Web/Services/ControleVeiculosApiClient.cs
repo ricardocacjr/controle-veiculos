@@ -276,9 +276,10 @@ public class ControleVeiculosApiClient(HttpClient http, AuthState authState)
     }
 
 
-    public async Task<string?> GetLinkNotaAsync(Guid id)
+    /// <summary>Link temporário pra abrir um anexo (nota da oficina, cupom do posto) no navegador.</summary>
+    public async Task<string?> GetLinkAnexoAsync(Guid anexoId)
     {
-        using var request = AuthorizedRequest(HttpMethod.Get, $"api/manutencoes/{id}/anexo/link");
+        using var request = AuthorizedRequest(HttpMethod.Get, $"api/anexos/{anexoId}/link");
         var response = await http.SendAsync(request);
         await EnsureSuccessWithApiErrorAsync(response);
         return (await response.Content.ReadFromJsonAsync<ControleVeiculos.Shared.Manutencoes.LinkAnexoDto>())?.Url;

@@ -10,8 +10,6 @@ public interface IManutencaoRepository : IRepository<Manutencao>
     /// <summary>Uma manutenção com itens e próximas, pronta pra editar.</summary>
     Task<Manutencao?> ObterParaEditarAsync(Guid id, CancellationToken ct = default);
 
-    Task AdicionarAnexoAsync(ManutencaoAnexo anexo, CancellationToken ct = default);
-    Task<ManutencaoAnexo?> ObterAnexoAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Troca os itens e as próximas de uma manutenção pelos novos (edição).</summary>
     void SubstituirDetalhes(Manutencao manutencao, IEnumerable<ManutencaoItem> itens, IEnumerable<ManutencaoProxima> proximas);

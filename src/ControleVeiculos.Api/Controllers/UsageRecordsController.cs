@@ -22,6 +22,7 @@ public class UsageRecordsController(
     IGeocodingService geocodingService,
     IEmpresaRepository empresaRepository,
     IMotivoUsoRepository motivoUsoRepository,
+    IAnexoRepository anexoRepository,
     IConfiguration configuration,
     IWebHostEnvironment environment) : ControllerBase
 {
@@ -124,11 +125,14 @@ public class UsageRecordsController(
             return NotFound();
         if (request.Litros <= 0 || request.ValorTotal <= 0)
             return BadRequest("Informe os litros e o valor do abastecimento.");
+        if (request.Desconto < 0 || request.Desconto >= request.ValorTotal)
+            return BadRequest("O desconto precisa ser menor que o valor na bomba.");
         if (request.Odometro < usage.OdometroInicial)
             return BadRequest($"O km do abastecimento ({request.Odometro:N0}) é menor que o da saída ({usage.OdometroInicial:N0}).");
 
         entrada.Litros = request.Litros;
-        entrada.ValorTotal = request.ValorTotal;
+        entrada.ValorTotal = request.ValorTotal - request.Desconto;
+        entrada.Desconto = request.Desconto;
         entrada.ValorPorLitro = Math.Round(request.ValorTotal / request.Litros, 3);
         entrada.Odometro = request.Odometro;
         entrada.TanqueCheio = request.TanqueCheio;
@@ -426,6 +430,8 @@ public class UsageRecordsController(
             return NotFound();
         if (request.Litros <= 0 || request.ValorTotal <= 0)
             return BadRequest("Informe os litros e o valor do abastecimento.");
+        if (request.Desconto < 0 || request.Desconto >= request.ValorTotal)
+            return BadRequest("O desconto precisa ser menor que o valor na bomba.");
         if (request.Odometro < usage.OdometroInicial)
             return BadRequest($"O km do abastecimento ({request.Odometro:N0}) é menor que o da saída ({usage.OdometroInicial:N0}).");
 
@@ -433,13 +439,16 @@ public class UsageRecordsController(
         {
             UsoId = id,
             Litros = request.Litros,
-            ValorTotal = request.ValorTotal,
+            // Grava o que foi PAGO (bomba − desconto do app): é o que entra nos custos.
+            ValorTotal = request.ValorTotal - request.Desconto,
+            Desconto = request.Desconto,
             Odometro = request.Odometro,
             ValorPorLitro = request.ValorPorLitro,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             TanqueCheio = request.TanqueCheio,
             PagoPeloMotorista = request.PagoPeloMotorista,
+            ComprovanteId = request.ComprovanteId,
         };
 
         await usageRepository.AddFuelEntryAsync(entry, ct);
@@ -462,22 +471,26 @@ public class UsageRecordsController(
         if (file.Length == 0)
             return BadRequest("Arquivo vazio.");
 
-        var fullPath = await SaveFileAsync(file, "fotos", id, ct);
+        // Cupom guardado no banco (o disco do Render some a cada deploy) pra poder abrir depois.
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var conteudo = ms.ToArray();
+        var comprovanteId = await anexoRepository.SalvarAsync($"cupom-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jpg", "image/jpeg", conteudo, ct);
 
         FuelReceiptReading leitura;
-        await using (var stream = System.IO.File.OpenRead(fullPath))
+        await using (var stream = new MemoryStream(conteudo))
             leitura = await fuelReceiptOcrService.ExtractAsync(stream, ct);
 
         var photo = new VehiclePhoto
         {
             UsoId = id,
             Tipo = VehiclePhotoType.ComprovanteAbastecimento,
-            ArquivoUrl = fullPath,
+            ArquivoUrl = $"anexo:{comprovanteId}",
         };
         await usageRepository.AddPhotoAsync(photo, ct);
         await usageRepository.SaveChangesAsync(ct);
 
-        return Ok(new FuelReceiptReadingDto(leitura.Litros, leitura.ValorTotal, leitura.ValorPorLitro));
+        return Ok(new FuelReceiptReadingDto(leitura.Litros, leitura.ValorTotal, leitura.ValorPorLitro, comprovanteId));
     }
 
     private async Task<string> SaveFileAsync(IFormFile file, string subpasta, Guid usageId, CancellationToken ct)
@@ -525,7 +538,7 @@ public class UsageRecordsController(
         u.LatitudeInicial, u.LongitudeInicial, u.Importado, u.Observacao, u.EmpresaId, u.LatitudeFinal, u.LongitudeFinal);
 
     private static FuelEntryDto ToFuelDto(FuelEntry a) =>
-        new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista);
+        new(a.Id, a.Litros, a.ValorTotal, a.ValorPorLitro, a.Odometro, a.CreatedAt, a.Latitude, a.Longitude, a.TanqueCheio, a.PagoPeloMotorista, a.ComprovanteId, a.Desconto);
 
     /// <summary>Referência pra leitura do odômetro durante o uso: o maior km já registrado nele.</summary>
     private static int UltimoKmConhecido(UsageRecord u) =>

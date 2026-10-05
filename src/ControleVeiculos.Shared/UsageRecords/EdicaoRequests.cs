@@ -13,7 +13,8 @@ public record UpdateUsageRequest(
     string? Origem = null,
     string? Destino = null);
 
-public record UpdateFuelEntryRequest(decimal Litros, decimal ValorTotal, int Odometro, bool TanqueCheio, bool PagoPeloMotorista);
+/// <param name="ValorTotal">Valor na bomba (antes do desconto do app).</param>
+public record UpdateFuelEntryRequest(decimal Litros, decimal ValorTotal, int Odometro, bool TanqueCheio, bool PagoPeloMotorista, decimal Desconto = 0);
 
 /// <summary>Motivo como aparece nas saídas (texto exato) e quantas saídas o usam.</summary>
 public record MotivoEmUsoDto(string Nome, int Saidas, bool NoCatalogo);

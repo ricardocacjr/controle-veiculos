@@ -20,7 +20,8 @@ public record ManutencaoDto(
     string? Oficina,
     IReadOnlyList<ManutencaoItemDto> Itens,
     IReadOnlyList<ManutencaoProximaDto> Proximas,
-    bool TemAnexo);
+    bool TemAnexo,
+    Guid? AnexoId = null);
 
 public record SalvarManutencaoRequest(
     Guid VeiculoId,

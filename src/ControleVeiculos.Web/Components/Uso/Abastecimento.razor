@@ -16,6 +16,11 @@
                           Tom="tone-fuel" TextoOcupado="Lendo o cupom..." LadoMaximo="2000"
                           Url="@($"api/usagerecords/{Uso.Id}/abastecimentos/ler-comprovante")"
                           OnInicio="() => _erro = null" OnResultado="CupomLidoAsync" />
+            @* Pagou pelo app do posto: não sai cupom — manda o print da tela do app. *@
+            <CameraGrande Titulo="Escolher da galeria" Subtitulo="Print do app do posto (quando não sai cupom)"
+                          Tom="tone-fuel" Icone="image" Compacto="true" Galeria="true" TextoOcupado="Lendo o print..." LadoMaximo="2000"
+                          Url="@($"api/usagerecords/{Uso.Id}/abastecimentos/ler-comprovante")"
+                          OnInicio="() => _erro = null" OnResultado="CupomLidoAsync" />
             <Mensagens Erro="@_erro" />
             <button type="button" class="link-discreto border-0 bg-transparent w-100" @onclick="() => _cupomLido = true">Sem cupom? Digitar os valores</button>
         }
@@ -31,17 +36,32 @@
                     <input class="form-control km-input" type="number" inputmode="decimal" step="0.001" @bind="_litros" @bind:event="oninput" />
                 </div>
                 <div class="field-row">
-                    <div class="field mb-0">
-                        <label>Valor total (R$)</label>
+                    <div class="field">
+                        <label>Valor na bomba (R$)</label>
                         <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="_valorTotal" @bind:event="oninput" />
                     </div>
-                    <div class="field mb-0">
+                    <div class="field">
                         <label>Preço do litro (R$)</label>
                         <input class="form-control" type="number" inputmode="decimal" step="0.001" @bind="_valorLitro" @bind:event="oninput" />
                     </div>
                 </div>
+                <div class="field mb-0">
+                    <label>Desconto do app do posto (R$)</label>
+                    <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="_desconto" @bind:event="oninput" placeholder="0,00 — deixe vazio se não teve" />
+                </div>
+                @if (_desconto is > 0 && _valorTotal is > 0)
+                {
+                    @if (_desconto >= _valorTotal)
+                    {
+                        <div class="notice notice-error mt-2 mb-0">O desconto precisa ser menor que o valor na bomba.</div>
+                    }
+                    else
+                    {
+                        <div class="pago-linha">Você pagou <b>@ValorPago.ToString("C")</b></div>
+                    }
+                }
             </div>
-            <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_litros is not > 0 || _valorTotal is not > 0)" @onclick="() => _passo = 2">
+            <button type="button" class="btn btn-primary btn-app big mt-3" disabled="@(_litros is not > 0 || _valorTotal is not > 0 || _desconto >= _valorTotal)" @onclick="() => _passo = 2">
                 Continuar <Icon Name="chevron-right" Size="20" />
             </button>
             <button type="button" class="btn btn-soft btn-app mt-2" @onclick="() => _cupomLido = false"><Icon Name="camera" Size="18" /> Tirar outra foto</button>
@@ -53,6 +73,10 @@
         @if (!_painelLido)
         {
             <CameraGrande Titulo="Fotografar o painel" Subtitulo="Mostrando o km. O local do posto é registrado sozinho."
+                          TextoOcupado="Lendo o painel..." Url="api/usagerecords/ler-painel" Campos="CamposPainel"
+                          Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
+            @* Painel também pela galeria (ex.: foto tirada antes, no posto). *@
+            <CameraGrande Titulo="Escolher da galeria" Subtitulo="Foto do painel que já está no celular" Icone="image" Compacto="true" Galeria="true"
                           TextoOcupado="Lendo o painel..." Url="api/usagerecords/ler-painel" Campos="CamposPainel"
                           Localizacao="true" OnInicio="() => _erro = null" OnResultado="PainelLidoAsync" />
             <Mensagens Erro="@_erro" />
@@ -117,7 +141,7 @@
             </div>
             <div class="summary-row">
                 <Icon Name="check" Class="summary-icon" />
-                <span><span class="summary-key">Valor</span><span class="summary-value">R$ @_valorTotal?.ToString("N2")@(PrecoLitro is { } p ? $"  ·  R$ {p:N3}/L" : "")</span></span>
+                <span><span class="summary-key">Valor</span><span class="summary-value">@ValorPago.ToString("C")@(_desconto is > 0 ? $" (desconto {_desconto:C})" : "")@(PrecoLitro is { } p ? $"  ·  R$ {p:N3}/L" : "")</span></span>
             </div>
             <div class="summary-row">
                 <Icon Name="gauge" Class="summary-icon" />
@@ -154,9 +178,14 @@
 
     private bool _cupomLido;
     private bool _leuAlgo = true;
+    private Guid? _comprovanteId;
     private decimal? _litros;
     private decimal? _valorTotal;
     private decimal? _valorLitro;
+    private decimal? _desconto;
+
+    /// <summary>O que saiu do bolso/cartão: valor na bomba − desconto do app do posto.</summary>
+    private decimal ValorPago => (_valorTotal ?? 0) - (_desconto ?? 0);
 
     private bool _tanqueCheio = true;
     private bool _doBolso;
@@ -200,6 +229,7 @@
         _valorTotal = leitura?.ValorTotal;
         _valorLitro = leitura?.ValorPorLitro;
         _leuAlgo = _litros is not null || _valorTotal is not null;
+        _comprovanteId = leitura?.ComprovanteId;
         _cupomLido = true;
         try { await JS.InvokeVoidAsync("cvVibrar", 40); } catch (JSException) { }
     }
@@ -239,9 +269,9 @@
         try
         {
             await Api.AddAbastecimentoAsync(Uso.Id, new AddFuelEntryRequest(
-                _litros.Value, _valorTotal.Value, _km.Value, PrecoLitro, _posicao?.Lat, _posicao?.Lng, _tanqueCheio, _doBolso));
+                _litros.Value, _valorTotal.Value, _km.Value, PrecoLitro, _posicao?.Lat, _posicao?.Lng, _tanqueCheio, _doBolso, _comprovanteId, _desconto ?? 0));
             await JS.InvokeVoidAsync("cvVibrar", new[] { 60, 60, 60 });
-            await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N3} L, R$ {_valorTotal:N2}.");
+            await OnConcluido.InvokeAsync($"⛽ Abastecimento salvo: {_litros:N3} L, {ValorPago:C}.");
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

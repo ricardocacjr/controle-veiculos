@@ -333,11 +333,11 @@ else
         _erro = _ok = null;
         _detalhe = h;
         _linkNota = null;
-        if (!h.TemAnexo)
+        if (h.AnexoId is not { } anexoId)
             return;
         try
         {
-            _linkNota = await Api.GetLinkNotaAsync(h.Id);
+            _linkNota = await Api.GetLinkAnexoAsync(anexoId);
         }
         catch (HttpRequestException)
         {

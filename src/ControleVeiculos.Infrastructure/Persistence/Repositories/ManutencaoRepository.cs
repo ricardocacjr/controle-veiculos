@@ -21,11 +21,6 @@ public class ManutencaoRepository(AppDbContext context) : RepositoryBase<Manuten
             .AsSplitQuery()
             .FirstOrDefaultAsync(m => m.Id == id, ct);
 
-    public async Task AdicionarAnexoAsync(ManutencaoAnexo anexo, CancellationToken ct = default) =>
-        await Context.Set<ManutencaoAnexo>().AddAsync(anexo, ct);
-
-    public async Task<ManutencaoAnexo?> ObterAnexoAsync(Guid id, CancellationToken ct = default) =>
-        await Context.Set<ManutencaoAnexo>().AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public void SubstituirDetalhes(Manutencao manutencao, IEnumerable<ManutencaoItem> itens, IEnumerable<ManutencaoProxima> proximas)
     {

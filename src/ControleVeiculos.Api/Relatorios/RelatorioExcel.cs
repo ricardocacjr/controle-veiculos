@@ -181,7 +181,7 @@ public static class RelatorioExcel
 
     private static void Abastecimentos(XLWorkbook wb, IReadOnlyList<UsageRecord> saidas, IReadOnlySet<Guid> diaZero)
     {
-        string[] cab = ["Data", "Motorista", "Veículo", "Empresa", "Litros", "Valor (R$)", "R$/litro", "Km", "Tanque cheio?", "Quem pagou", "Entra no gasto?", "Mapa"];
+        string[] cab = ["Data", "Motorista", "Veículo", "Empresa", "Litros", "Valor pago (R$)", "Desconto do app (R$)", "R$/litro (bomba)", "Km", "Tanque cheio?", "Quem pagou", "Entra no gasto?", "Mapa"];
         var linhas = saidas
             .SelectMany(u => u.Abastecimentos.Select(a => (u, a)))
             .OrderBy(x => x.a.CreatedAt)
@@ -193,7 +193,8 @@ public static class RelatorioExcel
                 x.u.Empresa?.Nome ?? "",
                 x.a.Litros,
                 x.a.ValorTotal,
-                x.a.ValorPorLitro ?? (x.a.Litros > 0 ? Math.Round(x.a.ValorTotal / x.a.Litros, 3) : 0),
+                x.a.Desconto,
+                x.a.ValorPorLitro ?? (x.a.Litros > 0 ? Math.Round((x.a.ValorTotal + x.a.Desconto) / x.a.Litros, 3) : 0),
                 x.a.Odometro,
                 x.a.TanqueCheio ? "Sim" : "Não",
                 x.a.PagoPeloMotorista ? "Motorista (do bolso)" : "Empresa",
@@ -205,10 +206,10 @@ public static class RelatorioExcel
         var ws = Tabela(wb, "Abastecimentos", cab, linhas);
         Formatar(ws, [1], FormatoDataHora);
         Formatar(ws, [5], FormatoLitros);
-        Formatar(ws, [6], FormatoReais);
-        Formatar(ws, [7], "\"R$\" #,##0.000");
-        Formatar(ws, [8], FormatoKm);
-        foreach (var cel in ws.Column(12).CellsUsed().Skip(1).Where(c => c.GetString().StartsWith("http")))
+        Formatar(ws, [6, 7], FormatoReais);
+        Formatar(ws, [8], "\"R$\" #,##0.000");
+        Formatar(ws, [9], FormatoKm);
+        foreach (var cel in ws.Column(13).CellsUsed().Skip(1).Where(c => c.GetString().StartsWith("http")))
             cel.SetHyperlink(new XLHyperlink(cel.GetString()));
         Ajustar(ws);
     }

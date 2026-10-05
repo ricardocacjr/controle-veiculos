@@ -204,8 +204,12 @@ else
                 <div class="list-item">
                     <span class="avatar tone-accent"><Icon Name="fuel" Size="20" /></span>
                     <span class="list-item-main">
-                        <span class="list-item-title d-block">@a.Litros.ToString("N3") L · R$ @a.ValorTotal.ToString("N2")@(a.TanqueCheio ? "" : " · tanque não completado")@(a.PagoPeloMotorista ? " · pago pelo motorista" : "")</span>
+                        <span class="list-item-title d-block">@a.Litros.ToString("N3") L · R$ @a.ValorTotal.ToString("N2")@(a.Desconto > 0 ? $" (desconto {a.Desconto:C})" : "")@(a.TanqueCheio ? "" : " · tanque não completado")@(a.PagoPeloMotorista ? " · pago pelo motorista" : "")</span>
                         <span class="list-item-sub d-block">@(a.ValorPorLitro is { } vpl ? $"R$ {vpl:N3}/L · " : "")@Rotulos.Km(a.Odometro) · @Rotulos.Hora(a.CreatedAt)</span>
+                        @if (a.ComprovanteId is { } cupom && _linksCupom.TryGetValue(cupom, out var linkCupom))
+                        {
+                            <a class="link-troca d-inline-block" href="@linkCupom" target="_blank" rel="noopener">📎 Ver cupom</a>
+                        }
                     </span>
                     @if (a.Latitude is { } lat && a.Longitude is { } lng)
                     {
@@ -228,9 +232,13 @@ else
                                 <input class="form-control" type="number" inputmode="decimal" step="0.001" @bind="ab.Litros" />
                             </div>
                             <div class="field mb-2">
-                                <label>Valor (R$)</label>
+                                <label>Valor na bomba (R$)</label>
                                 <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="ab.Valor" />
                             </div>
+                        </div>
+                        <div class="field mb-2">
+                            <label>Desconto do app do posto (R$)</label>
+                            <input class="form-control" type="number" inputmode="decimal" step="0.01" @bind="ab.Desconto" />
                         </div>
                         <div class="field mb-2">
                             <label>Km no abastecimento</label>
@@ -330,6 +338,24 @@ else
     private string? _erroAbast;
     private string? _ok;
 
+    /// <summary>Links temporários (10 min) pra abrir o cupom de cada abastecimento no navegador.</summary>
+    private Dictionary<Guid, string> _linksCupom = [];
+
+    private async Task CarregarLinksCupomAsync()
+    {
+        var links = new Dictionary<Guid, string>();
+        foreach (var id in _uso?.Abastecimentos.Select(a => a.ComprovanteId).OfType<Guid>() ?? [])
+        {
+            try
+            {
+                if (await Api.GetLinkAnexoAsync(id) is { } url)
+                    links[id] = url;
+            }
+            catch (HttpRequestException) { } // cupom antigo sem arquivo — só não mostra o link
+        }
+        _linksCupom = links;
+    }
+
     private static readonly TimeSpan Brasilia = TimeSpan.FromHours(-3);
     private string TextoBase => Base.Endereco;
 
@@ -352,6 +378,7 @@ else
         public Guid Id { get; set; }
         public decimal Litros { get; set; }
         public decimal Valor { get; set; }
+        public decimal Desconto { get; set; }
         public int Km { get; set; }
         public bool TanqueCheio { get; set; }
         public bool DoBolso { get; set; }
@@ -423,7 +450,7 @@ else
         _erroAbast = _ok = null;
         _abastEdicao = new AbastecimentoModel
         {
-            Id = a.Id, Litros = a.Litros, Valor = a.ValorTotal, Km = a.Odometro, TanqueCheio = a.TanqueCheio, DoBolso = a.PagoPeloMotorista,
+            Id = a.Id, Litros = a.Litros, Valor = a.ValorTotal + a.Desconto, Desconto = a.Desconto, Km = a.Odometro, TanqueCheio = a.TanqueCheio, DoBolso = a.PagoPeloMotorista,
         };
     }
 
@@ -434,8 +461,9 @@ else
         _erroAbast = null;
         try
         {
-            await Api.EditarAbastecimentoAsync(Id, a.Id, new ControleVeiculos.Shared.UsageRecords.UpdateFuelEntryRequest(a.Litros, a.Valor, a.Km, a.TanqueCheio, a.DoBolso));
+            await Api.EditarAbastecimentoAsync(Id, a.Id, new ControleVeiculos.Shared.UsageRecords.UpdateFuelEntryRequest(a.Litros, a.Valor, a.Km, a.TanqueCheio, a.DoBolso, a.Desconto));
             _uso = await Api.GetUsageRecordDetailAsync(Id) ?? _uso;
+            await CarregarLinksCupomAsync();
             _abastEdicao = null;
             _ok = "✅ Abastecimento atualizado.";
         }
@@ -489,6 +517,7 @@ else
         try
         {
             _uso = await Api.GetUsageRecordDetailAsync(Id);
+            await CarregarLinksCupomAsync();
             if (_uso is null)
                 _error = "Uso não encontrado.";
         }

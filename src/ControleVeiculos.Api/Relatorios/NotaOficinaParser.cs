@@ -73,9 +73,9 @@ public static class NotaOficinaParser
     {
         var nome = linhas.FirstOrDefault(l => NomeOficinaRegex.IsMatch(l) && !l.Contains("R$"));
         if (nome is not null)
-            return Limpar(nome);
+            return Limpar(nome).ToUpperInvariant();
         var endereco = linhas.Select(l => EnderecoRegex.Match(l)).FirstOrDefault(m => m.Success);
-        return endereco is null ? null : Limpar(Regex.Replace(endereco.Groups[1].Value, @"^\s*RUA\s*:\s*", "RUA ", Opcoes));
+        return endereco is null ? null : Limpar(Regex.Replace(endereco.Groups[1].Value, @"^\s*RUA\s*:\s*", "RUA ", Opcoes)).ToUpperInvariant();
     }
 
     private static string Limpar(string texto) => Regex.Replace(texto, @"\s+", " ").Trim(' ', ';', ':');

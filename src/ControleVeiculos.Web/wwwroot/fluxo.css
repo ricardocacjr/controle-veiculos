@@ -859,3 +859,5 @@
     .nota-itens td { padding: 8px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
     .nota-itens td:first-child { width: 42px; color: var(--muted); }
     .nota-itens tfoot td { font-weight: 800; font-size: 17px; border-bottom: 0; border-top: 2px solid var(--border); }
+.pago-linha { margin-top: 10px; font-size: 16px; }
+    .pago-linha b { font-size: 20px; }

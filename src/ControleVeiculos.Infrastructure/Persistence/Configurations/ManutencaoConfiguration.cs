@@ -41,11 +41,11 @@ public class ManutencaoProximaConfiguration : IEntityTypeConfiguration<Manutenca
     }
 }
 
-public class ManutencaoAnexoConfiguration : IEntityTypeConfiguration<ManutencaoAnexo>
+public class AnexoConfiguration : IEntityTypeConfiguration<Anexo>
 {
-    public void Configure(EntityTypeBuilder<ManutencaoAnexo> builder)
+    public void Configure(EntityTypeBuilder<Anexo> builder)
     {
-        builder.ToTable("ManutencaoAnexos");
+        builder.ToTable("Anexos");
         builder.Property(a => a.Nome).HasMaxLength(200);
         builder.Property(a => a.ContentType).HasMaxLength(100);
         builder.Property(a => a.Conteudo).HasColumnType("longblob");

@@ -53,12 +53,3 @@ public class ManutencaoProxima : BaseEntity
     public int? ProximaKm { get; set; }
     public DateOnly? ProximaData { get; set; }
 }
-
-/// <summary>Nota da oficina (PDF ou foto), guardada no banco — o disco do servidor não é permanente.</summary>
-public class ManutencaoAnexo : BaseEntity, ITenantScoped
-{
-    public Guid? TenantId { get; set; }
-    public required string Nome { get; set; }
-    public required string ContentType { get; set; }
-    public required byte[] Conteudo { get; set; }
-}
