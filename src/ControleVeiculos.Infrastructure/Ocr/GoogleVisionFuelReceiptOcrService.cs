@@ -70,9 +70,19 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
     private static readonly Regex NumeroPattern = new(@"(?<![\d.,])\d{1,4}[.,]\d{2,3}(?!\d|[.,]\d)", RegexOptions.Compiled);
 
     // Linha do item no cupom: "19,416 L x 6,890 133,77" (litros × preço do litro = total).
+    // Não começa logo depois de "R$" — aí é o formato invertido abaixo (preço primeiro).
     private static readonly Regex ItemPattern = new(
-        @"(?<![\d.,])(\d{1,3}[.,]\d{2,3})\s*(?:L|LT|LTS|LITROS?)?\s*[xX×*]\s*(\d{1,2}[.,]\d{2,4})(?:\s+(?:R\$\s*)?(\d{1,4}[.,]\d{2})(?!\d))?",
+        @"(?<![\d.,])(?<!R\$\s{0,2})(\d{1,3}[.,]\d{2,3})\s*(?:L|LT|LTS|LITROS?)?\s*[xX×*]\s*(\d{1,2}[.,]\d{2,4})(?:\s+(?:R\$\s*)?(\d{1,4}[.,]\d{2})(?!\d))?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // App do posto (Shell Box): "R$ 6,89 x 9.892 LT" (preço × litros).
+    private static readonly Regex ItemInvertidoPattern = new(
+        @"R\$\s*(\d{1,2}[.,]\d{2,3})\s*[xX×*]\s*(\d{1,3}[.,]\d{2,3})\s*(?:L|LT|LTS|LITROS?)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Valor negativo ("-R$ 1,98") num print de app é desconto.
+    private static readonly Regex NegativoPattern = new(@"[-−–]\s*(?:R\$)?\s*(\d{1,4}[.,]\d{2})(?!\d)", RegexOptions.Compiled);
+    private static readonly Regex PalavraDesconto = new(@"DESCONTO|DESC\.|ECONOMI|ABATIMENTO", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private const decimal PrecoMinimo = 2.5m;
     private const decimal PrecoMaximo = 15m;
@@ -100,6 +110,20 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
         var linhas = texto.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var desconto = ValorNaLinha(linhas, "DESCONTO") ?? ValorNaLinha(linhas, "DESC.") ?? ValorNaLinha(linhas, "ECONOMI")
             ?? ValorNaLinha(linhas, "ABATIMENTO");
+
+        // Print de app em 2 colunas: o OCR lê os rótulos e depois os valores, então o valor do
+        // desconto não fica perto do rótulo. Valem: valor negativo ("-R$ 1,98") ou, havendo a palavra
+        // desconto, um valor d tal que (bomba − d) também aparece no print (68,15 − 1,98 = 66,17).
+        if (desconto is null && PalavraDesconto.IsMatch(texto))
+        {
+            var valores = NumeroPattern.Matches(texto).Select(m => ParseDecimal(m.Value)).OfType<decimal>().ToList();
+            bool Fecha(decimal d) => bomba is > 0 && valores.Any(v => Math.Abs(bomba.Value - d - v) < 0.02m);
+            var negativos = NegativoPattern.Matches(texto).Select(m => ParseDecimal(m.Groups[1].Value)).OfType<decimal>().ToList();
+            desconto = negativos.Where(Fecha).Cast<decimal?>().FirstOrDefault()
+                ?? negativos.Cast<decimal?>().FirstOrDefault()
+                ?? valores.Where(d => d > 0 && bomba is > 0 && d < bomba * 0.5m && Fecha(d)).Cast<decimal?>().FirstOrDefault();
+        }
+
         if (desconto is null && bomba is > 0
             && (ValorNaLinha(linhas, "VALOR PAGO") ?? ValorNaLinha(linhas, "TOTAL PAGO") ?? ValorNaLinha(linhas, "VOCÊ PAGOU") ?? ValorNaLinha(linhas, "VOCE PAGOU")) is { } pago
             && pago < bomba)
@@ -127,6 +151,16 @@ public class GoogleVisionFuelReceiptOcrService(IConfiguration configuration, ILo
                     return new FuelReceiptReading(l, total, p);
                 if (t is null)
                     return new FuelReceiptReading(l, Math.Round(l.Value * p.Value, 2), p);
+            }
+
+            // Formato invertido do app ("R$ 6,89 x 9.892 LT"): o total é o valor do print que fecha a conta.
+            if (ItemInvertidoPattern.Match(linhas[i]) is { Success: true } inv
+                && ParseDecimal(inv.Groups[1].Value) is { } preco && preco is >= PrecoMinimo and <= PrecoMaximo
+                && ParseDecimal(inv.Groups[2].Value) is { } litrosInv && litrosInv > 0)
+            {
+                var total = NumeroPattern.Matches(texto).Select(m => ParseDecimal(m.Value)).OfType<decimal>()
+                    .Where(v => FechaConta(litrosInv, preco, v)).Cast<decimal?>().FirstOrDefault();
+                return new FuelReceiptReading(litrosInv, total ?? Math.Round(litrosInv * preco, 2), preco);
             }
         }
 
